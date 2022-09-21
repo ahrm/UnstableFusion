@@ -56,6 +56,22 @@ inpaint_functions = {
     'gaussian': gaussian_noise
 }
 
+shortcuts = {
+    'undo': 'Ctrl+Z',
+    'redo': 'Ctrl+Shift+Z',
+    'open': 'O',
+    'toggle_scratchpad': 'S',
+    'quicksave': 'F5',
+    'select_color': 'C',
+    'generate': 'Return',
+    'inpaint': 'Space',
+    'reimagine': 'R',
+    'export': 'Ctrl+S',
+    'increase_size': '+',
+    'decrease_size': '-',
+    'paste_from_scratchpad': 'p',
+}
+
 def get_texture():
     SIZE = 512
     Z = np.zeros((SIZE, SIZE), dtype=np.uint8)
@@ -99,6 +115,9 @@ class DummyStableDiffusionHandler:
         for j in range(np_im.shape[1]):
             np_im[:, j, 2] = int((j / np_im.shape[0]) * 255)
         return Image.fromarray(np_im)
+
+    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5):
+        return image
 
 def dummy_safety_checker(self):
         def check(images, *args, **kwargs):
@@ -177,7 +196,7 @@ class StableDiffusionHandler:
 
 class PaintWidget(QWidget):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, prompt_textarea_, stable_diffusion_handler_, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.np_image = None
         self.qt_image = None
@@ -199,7 +218,55 @@ class PaintWidget(QWidget):
         self.setAcceptDrops(True)
         self.scratchpad = None
         self.owner = None
-    
+
+
+        self.paste_shortcut = QShortcut(QKeySequence(shortcuts['paste_from_scratchpad']), self)
+        self.paste_shortcut.activated.connect(self.handle_paste_scratchpad)
+
+        self.decrease_size_shortcut = QShortcut(QKeySequence(shortcuts['decrease_size']), self)
+        self.decrease_size_shortcut.activated.connect(self.handle_decrease_size_button)
+
+        self.increase_size_shortcut = QShortcut(QKeySequence(shortcuts['increase_size']), self)
+        self.increase_size_shortcut.activated.connect(self.handle_increase_size_button)
+
+        self.export_shortcut = QShortcut(QKeySequence(shortcuts['export']), self)
+        self.export_shortcut.activated.connect(self.handle_export_button)
+
+        self.reimagine_shortcut = QShortcut(QKeySequence(shortcuts['reimagine']), self)
+        self.reimagine_shortcut.activated.connect(self.handle_reimagine_button)
+
+        self.inpaint_shortcut = QShortcut(QKeySequence(shortcuts['inpaint']), self)
+        self.inpaint_shortcut.activated.connect(self.handle_inpaint_button)
+
+        self.generate_shortcut = QShortcut(QKeySequence(shortcuts['generate']), self)
+        self.generate_shortcut.activated.connect(self.handle_generate_button)
+
+        self.select_color_shortcut = QShortcut(QKeySequence(shortcuts['select_color']), self)
+        self.select_color_shortcut.activated.connect(self.handle_select_color_button)
+
+        self.undo_shortcut = QShortcut(QKeySequence(shortcuts['undo']), self)
+        self.redo_shortcut = QShortcut(QKeySequence(shortcuts['redo']), self)
+        self.undo_shortcut.activated.connect(self.update_and(self.undo))
+        self.redo_shortcut.activated.connect(self.update_and(self.redo))
+
+        self.open_shortcut = QShortcut(QKeySequence(shortcuts['open']), self)
+        self.open_shortcut.activated.connect(self.update_and(self.handle_load_image_button))
+
+        self.toggle_scratchpad_shortcut = QShortcut(QKeySequence(shortcuts['toggle_scratchpad']), self)
+        self.toggle_scratchpad_shortcut.activated.connect(self.update_and(self.handle_show_scratchpad))
+
+        self.quicksave_shortcut = QShortcut(QKeySequence(shortcuts['quicksave']), self)
+        self.quicksave_shortcut.activated.connect(self.update_and(self.handle_quicksave_button))
+        
+        self.prompt_textarea = prompt_textarea_
+        self.stable_diffusion_handler = stable_diffusion_handler_
+
+    def update_and(self, f):
+        def update_and_f(*args, **kwargs):
+            f(*args, **kwargs)
+            self.update()
+        return update_and_f
+
     def dragEnterEvent(self, e):
         if e.mimeData().hasImage:
             e.accept()
@@ -445,51 +512,115 @@ class PaintWidget(QWidget):
 
 
 
-def handle_load_image_button(paint_widget):
-    file_name = QFileDialog.getOpenFileName()
+    def handle_load_image_button(self):
+        file_name = QFileDialog.getOpenFileName()
 
-    if file_name[0]:
-        imdata = Image.open(file_name[0])
-        image_numpy = np.array(imdata)
-        widget.set_np_image(image_numpy)
-        widget.resize_to_image(only_if_smaller=True)
-        widget.update()
+        if file_name[0]:
+            imdata = Image.open(file_name[0])
+            image_numpy = np.array(imdata)
+            self.set_np_image(image_numpy)
+            self.resize_to_image(only_if_smaller=True)
+            self.update()
 
-def handle_erase_button(paint_widget):
-    paint_widget.erase_selection()
-    widget.update()
+    def handle_erase_button(self):
+        self.erase_selection()
+        self.update()
 
-def handle_undo_button(paint_widget):
-    paint_widget.undo()
-    widget.update()
+    def handle_undo_button(self):
+        self.undo()
+        self.update()
 
-def handle_redo_button(paint_widget):
-    paint_widget.redo()
-    widget.update()
+    def handle_redo_button(self):
+        self.redo()
+        self.update()
 
-def handle_generate_button(paint_widget, diffusion_handler, prompt):
-    width = paint_widget.selection_rectangle.width()
-    height = paint_widget.selection_rectangle.height()
-    image = diffusion_handler.generate(prompt, width=width, height=height)
-    paint_widget.set_selection_image(image)
-    paint_widget.update()
+    def handle_generate_button(self):
+        prompt = self.prompt_textarea.text()
+        width = self.selection_rectangle.width()
+        height = self.selection_rectangle.height()
+        image = self.stable_diffusion_handler.generate(prompt, width=width, height=height)
+        self.set_selection_image(image)
+        self.update()
 
-def handle_inpaint_button(paint_widget, diffusion_handler, prompt):
-    image_ = paint_widget.get_selection_np_image()
-    image = image_[:, :, :3]
-    mask = 255 - image_[:, :, 3]
+    def handle_inpaint_button(self):
+        prompt = self.prompt_textarea.text()
+        image_ = self.get_selection_np_image()
+        image = image_[:, :, :3]
+        mask = 255 - image_[:, :, 3]
 
-    image, _ = inpaint_functions[paint_widget.inpaint_method](image, 255 - mask)
+        image, _ = inpaint_functions[self.inpaint_method](image, 255 - mask)
 
-    inpainted_image = diffusion_handler.inpaint(prompt,
-                                                image,
-                                                mask,
-                                                strength=paint_widget.strength,
-                                                steps=paint_widget.steps,
-                                                guidance_scale=paint_widget.guidance_scale)
+        inpainted_image = self.stable_diffusion_handler.inpaint(prompt,
+                                                    image,
+                                                    mask,
+                                                    strength=self.strength,
+                                                    steps=self.steps,
+                                                    guidance_scale=self.guidance_scale)
 
-    paint_widget.set_selection_image(inpainted_image)
-    paint_widget.update()
+        self.set_selection_image(inpainted_image)
+        self.update()
+
+
+    def handle_quicksave_button(self):
+        quicksave_image(self.np_image)
+
+    def handle_export_button(self):
+        path = QFileDialog.getSaveFileName()
+        if path[0]:
+            quicksave_image(self.np_image, file_path=path[0])
+
+    def handle_select_color_button(self, select_color_button=None):
+        color = QColorDialog.getColor()
+        if color.isValid():
+            self.set_color(color)
+
+            if select_color_button != None:
+                sheet = ('background-color: %s' % color.name()) + ';' + ('color: %s' % ('black' if color.lightness() > 128 else 'white')) + ';'
+                select_color_button.setStyleSheet(sheet)
+
+
+
+    def handle_paint_button(self):
+        self.paint_selection()
+        self.update()
+
+    def handle_increase_size_button(self):
+        self.increase_image_size()
+        self.resize_to_image(only_if_smaller=True)
+        self.update()
+
+    def handle_decrease_size_button(self):
+        self.decrease_image_size()
+        self.update()
+
+    def handle_show_scratchpad(self):
+        if not (self.scratchpad is None):
+            if scratchpad.isVisible():
+                self.scratchpad.hide()
+            else:
+                self.scratchpad.show()
+
+    def handle_paste_scratchpad(self):
+        if not (self.scratchpad.np_image is None):
+            resized = np.array(
+                Image.fromarray(
+                    self.scratchpad.get_selection_np_image()).resize(
+                        (self.selection_rectangle.width(), self.selection_rectangle.height()), Image.LANCZOS))
+            self.set_selection_image(resized)
+            self.update()
+
+    def handle_reimagine_button(self):
+
+        prompt = self.prompt_textarea.text()
+        image_ = self.get_selection_np_image()
+        image = image_[:, :, :3]
+        reimagined_image = self.stable_diffusion_handler.reimagine(prompt,
+                                                    image,
+                                                    steps=self.steps,
+                                                    guidance_scale=self.guidance_scale)
+
+        self.set_selection_image(reimagined_image)
+        self.update()
 
 def create_select_widget(name, options, select_callback=None):
     container_widget = QWidget()
@@ -559,70 +690,9 @@ def create_slider_widget(name, minimum=0, maximum=1, default=0.5, dtype=float, v
 
 
     return strength_widget, strength_slider, value_text
-
-def handle_quicksave_button(paint_widget):
-    quicksave_image(paint_widget.np_image)
-
-def handle_export_button(paint_widget):
-    path = QFileDialog.getSaveFileName()
-    if path[0]:
-        quicksave_image(paint_widget.np_image, file_path=path[0])
-
-def handle_select_color_button(paint_widget, select_color_button):
-    color = QColorDialog.getColor()
-    if color.isValid():
-        paint_widget.set_color(color)
-
-
-        sheet = ('background-color: %s' % color.name()) + ';' + ('color: %s' % ('black' if color.lightness() > 128 else 'white')) + ';'
-        select_color_button.setStyleSheet(sheet)
-
-
-
-def handle_paint_button(paint_widget):
-    paint_widget.paint_selection()
-    paint_widget.update()
-
-def handle_increase_size_button(paint_widget):
-    paint_widget.increase_image_size()
-    paint_widget.resize_to_image(only_if_smaller=True)
-    paint_widget.update()
-
-def handle_decrease_size_button(paint_widget):
-    paint_widget.decrease_image_size()
-    paint_widget.update()
-
-def handle_show_scratchpad(paint_widget, scratchpad):
-    if scratchpad.isVisible():
-        scratchpad.hide()
-    else:
-        scratchpad.show()
-
-def handle_paste_scratchpad(paint_widget, scratchpad):
-    if not (scratchpad.np_image is None):
-        resized = np.array(Image.fromarray(scratchpad.get_selection_np_image()).resize((paint_widget.selection_rectangle.width(), paint_widget.selection_rectangle.height()), Image.LANCZOS))
-        paint_widget.set_selection_image(resized)
-        paint_widget.update()
-
-def handle_reimagine_button(paint_widget, diffusion_handler, prompt):
-
-    image_ = paint_widget.get_selection_np_image()
-    image = image_[:, :, :3]
-
-    # image, _ = inpaint_functions[paint_widget.inpaint_method](image, 255 - mask)
-
-    # def reimagine(self, prompt, image, steps=50, guidance_scale=7.5):
-    reimagined_image = diffusion_handler.reimagine(prompt,
-                                                image,
-                                                steps=paint_widget.steps,
-                                                guidance_scale=paint_widget.guidance_scale)
-
-    paint_widget.set_selection_image(reimagined_image)
-    paint_widget.update()
-
 if __name__ == '__main__':
-    stable_diffusion_handler = StableDiffusionHandler()
-    # stable_diffusion_handler = DummyStableDiffusionHandler()
+    # stable_diffusion_handler = StableDiffusionHandler()
+    stable_diffusion_handler = DummyStableDiffusionHandler()
 
     app = QApplication(sys.argv)
     tools_widget = QWidget()
@@ -667,8 +737,9 @@ if __name__ == '__main__':
     scratchpad_layout.addWidget(paste_scratchpad_button)
     scratchpad_container.setLayout(scratchpad_layout)
     export_button = QPushButton('Export')
-    widget = PaintWidget()
-    scratchpad = PaintWidget()
+    widget = PaintWidget(prompt_textarea, stable_diffusion_handler)
+    scratchpad = PaintWidget(prompt_textarea, stable_diffusion_handler)
+
     widget.scratchpad = scratchpad
     scratchpad.owner = widget
 
@@ -725,21 +796,21 @@ if __name__ == '__main__':
     tools_layout.addWidget(scratchpad_container)
     tools_widget.setLayout(tools_layout)
 
-    load_image_button.clicked.connect(lambda : handle_load_image_button(widget))
-    erase_button.clicked.connect(lambda : handle_erase_button(widget))
-    undo_button.clicked.connect(lambda : handle_undo_button(widget))
-    redo_button.clicked.connect(lambda : handle_redo_button(widget))
-    generate_button.clicked.connect(lambda : handle_generate_button(widget, stable_diffusion_handler, prompt_textarea.text()))
-    inpaint_button.clicked.connect(lambda : handle_inpaint_button(widget, stable_diffusion_handler, prompt_textarea.text()))
-    quicksave_button.clicked.connect(lambda : handle_quicksave_button(widget))
-    export_button.clicked.connect(lambda : handle_export_button(widget))
-    select_color_button.clicked.connect(lambda : handle_select_color_button(widget, select_color_button))
-    paint_button.clicked.connect(lambda : handle_paint_button(widget))
-    increase_size_button.clicked.connect(lambda : handle_increase_size_button(widget))
-    decrease_size_button.clicked.connect(lambda : handle_decrease_size_button(widget))
-    show_scratchpad_button.clicked.connect(lambda : handle_show_scratchpad(widget, scratchpad))
-    paste_scratchpad_button.clicked.connect(lambda : handle_paste_scratchpad(widget, scratchpad))
-    reimagine_button.clicked.connect(lambda : handle_reimagine_button(widget, stable_diffusion_handler, prompt_textarea.text()))
+    load_image_button.clicked.connect(lambda : widget.handle_load_image_button())
+    erase_button.clicked.connect(lambda : widget.handle_erase_button())
+    undo_button.clicked.connect(lambda : widget.handle_undo_button())
+    redo_button.clicked.connect(lambda : widget.handle_redo_button())
+    generate_button.clicked.connect(lambda : widget.handle_generate_button())
+    inpaint_button.clicked.connect(lambda : widget.handle_inpaint_button())
+    quicksave_button.clicked.connect(lambda : widget.handle_quicksave_button())
+    export_button.clicked.connect(lambda : widget.handle_export_button())
+    select_color_button.clicked.connect(lambda : widget.handle_select_color_button( select_color_button))
+    paint_button.clicked.connect(lambda : widget.handle_paint_button())
+    increase_size_button.clicked.connect(lambda : widget.handle_increase_size_button())
+    decrease_size_button.clicked.connect(lambda : widget.handle_decrease_size_button())
+    show_scratchpad_button.clicked.connect(lambda : widget.handle_show_scratchpad())
+    paste_scratchpad_button.clicked.connect(lambda : widget.handle_paste_scratchpad())
+    reimagine_button.clicked.connect(lambda : widget.handle_reimagine_button())
 
     widget.set_np_image(testtexture)
     widget.resize_to_image()

@@ -1,8 +1,3 @@
-from importlib.machinery import DEBUG_BYTECODE_SUFFIXES
-from random import expovariate
-from smtpd import DebuggingServer
-from turtle import width
-from xml.dom import minicompat
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -170,6 +165,23 @@ class PaintWidget(QWidget):
         self.history = []
         self.future = []
         self.color = np.array([0, 0, 0])
+
+        self.setAcceptDrops(True)
+        self.scratchpad = None
+        self.owner = None
+    
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasImage:
+            e.accept()
+        else:
+            e.ignore()
+        
+    def dropEvent(self, e):
+        imdata = Image.open(e.mimeData().text()[8:])
+        image_numpy = np.array(imdata)
+        self.set_np_image(image_numpy)
+        self.resize_to_image(only_if_smaller=True)
+        self.update()
     
     def set_strength(self, new_strength):
         self.strength = new_strength
@@ -219,6 +231,8 @@ class PaintWidget(QWidget):
                 self.paint_selection(False)
 
             self.update()
+            if self.owner != None:
+                self.owner.update()
 
     def mouseReleaseEvent(self, e):
         # if e.button() == Qt.LeftButton:
@@ -315,11 +329,16 @@ class PaintWidget(QWidget):
             target_width = image_rect.width()
             target_height = image_rect.height()
             patch_np = np.array(patch_image)[source_rect.top():source_rect.bottom(), source_rect.left():source_rect.right(), :][:target_height, :target_width, :]
-            patch_alpha = np.ones((patch_np.shape[0], patch_np.shape[1])).astype(np.uint8) * 255
-            new_image[image_rect.top():image_rect.top() + patch_np.shape[0], image_rect.left():image_rect.left()+patch_np.shape[1], :] = \
+            if patch_np.shape[-1] == 4:
+                patch_np, patch_alpha = patch_np[:, :, :3], patch_np[:, :, 3]
+                patch_alpha = (patch_alpha > 128) * 255
+            else:
+                patch_alpha = np.ones((patch_np.shape[0], patch_np.shape[1])).astype(np.uint8) * 255
+
+            new_image[image_rect.top():image_rect.top() + patch_np.shape[0], image_rect.left():image_rect.left()+patch_np.shape[1], :][patch_alpha > 128] = \
                 np.concatenate(
                     [patch_np, patch_alpha[:, :, None]],
-                axis=-1)
+                axis=-1)[patch_alpha > 128]
             self.set_np_image(new_image)
 
 
@@ -383,6 +402,12 @@ class PaintWidget(QWidget):
             # painter.setBrush(redbrush)
             painter.setPen(QPen(Qt.red,  1, Qt.SolidLine))
             painter.drawRect(self.selection_rectangle)
+        if self.scratchpad != None and (self.scratchpad.isVisible()):
+            if (not (self.scratchpad.np_image is None)) and (not (self.scratchpad.selection_rectangle is None)) and (not (self.selection_rectangle is None)):
+                image = np.array(Image.fromarray(self.scratchpad.get_selection_np_image()).resize((self.selection_rectangle.width(), self.selection_rectangle.height()), Image.LANCZOS))
+                painter.drawImage(self.selection_rectangle, qimage_from_array(image))
+
+
 
 def handle_load_image_button(paint_widget):
     file_name = QFileDialog.getOpenFileName()
@@ -413,7 +438,7 @@ def handle_generate_button(paint_widget, diffusion_handler, prompt):
     paint_widget.set_selection_image(image)
     paint_widget.update()
 
-def handle_debug_button(paint_widget, diffusion_handler, prompt):
+def handle_inpaint_button(paint_widget, diffusion_handler, prompt):
     image_ = paint_widget.get_selection_np_image()
     image = image_[:, :, :3]
     mask = 255 - image_[:, :, 3]
@@ -488,6 +513,12 @@ def create_slider_widget(name, minimum=0, maximum=1, default=0.5, dtype=float, v
     strength_slider.setMinimum(minimum * 100)
     strength_slider.setMaximum(maximum * 100)
     strength_slider.setValue(default * 100)
+
+    strength_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+    value_text.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+    reset_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+    
+    strength_slider.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
     # set the default value
 
 
@@ -501,10 +532,16 @@ def handle_export_button(paint_widget):
     if path[0]:
         quicksave_image(paint_widget.np_image, file_path=path[0])
 
-def handle_select_color_button(paint_widget):
+def handle_select_color_button(paint_widget, select_color_button):
     color = QColorDialog.getColor()
     if color.isValid():
         paint_widget.set_color(color)
+
+
+        sheet = ('background-color: %s' % color.name()) + ';' + ('color: %s' % ('black' if color.lightness() > 128 else 'white')) + ';'
+        select_color_button.setStyleSheet(sheet)
+
+
 
 def handle_paint_button(paint_widget):
     paint_widget.paint_selection()
@@ -518,6 +555,18 @@ def handle_increase_size_button(paint_widget):
 def handle_decrease_size_button(paint_widget):
     paint_widget.decrease_image_size()
     paint_widget.update()
+
+def handle_show_scratchpad(paint_widget, scratchpad):
+    if scratchpad.isVisible():
+        scratchpad.hide()
+    else:
+        scratchpad.show()
+
+def handle_paste_scratchpad(paint_widget, scratchpad):
+    if not (scratchpad.np_image is None):
+        resized = np.array(Image.fromarray(scratchpad.get_selection_np_image()).resize((paint_widget.selection_rectangle.width(), paint_widget.selection_rectangle.height()), Image.LANCZOS))
+        paint_widget.set_selection_image(resized)
+        paint_widget.update()
 
 if __name__ == '__main__':
     stable_diffusion_handler = StableDiffusionHandler()
@@ -552,13 +601,23 @@ if __name__ == '__main__':
     undo_redo_layout.addWidget(redo_button)
     undo_redo_container.setLayout(undo_redo_layout)
 
-    debug_button = QPushButton('Debug')
+    inpaint_button = QPushButton('Inpaint')
     prompt_textarea = QLineEdit()
     prompt_textarea.setPlaceholderText('Prompt')
     generate_button = QPushButton('Generate')
     quicksave_button = QPushButton('Quick Save')
+    scratchpad_container = QWidget()
+    scratchpad_layout = QHBoxLayout()
+    show_scratchpad_button = QPushButton('Show Scratchpad')
+    paste_scratchpad_button = QPushButton('Paste From Scratchpad')
+    scratchpad_layout.addWidget(show_scratchpad_button)
+    scratchpad_layout.addWidget(paste_scratchpad_button)
+    scratchpad_container.setLayout(scratchpad_layout)
     export_button = QPushButton('Export')
     widget = PaintWidget()
+    scratchpad = PaintWidget()
+    widget.scratchpad = scratchpad
+    scratchpad.owner = widget
 
     strength_widget, strength_slider, strength_text = create_slider_widget(
         "Strength",
@@ -584,24 +643,32 @@ if __name__ == '__main__':
         widget.set_inpaint_method(inpaint_options[num])
 
     inpaint_selector_container, inpaint_selector = create_select_widget(
-        'Inpaint Algorithm',
+        'Initializer',
         inpaint_options,
         select_callback=inpaint_change_callback)
+
+    inpaint_container = QWidget()
+    inpaint_layout = QHBoxLayout()
+    inpaint_layout.addWidget(inpaint_selector_container)
+    inpaint_layout.addWidget(inpaint_button)
+    inpaint_container.setLayout(inpaint_layout)
 
     tools_layout.addWidget(load_image_button)
     tools_layout.addWidget(erase_button)
     tools_layout.addWidget(paint_widgets_container)
     tools_layout.addWidget(undo_redo_container)
-    tools_layout.addWidget(debug_button)
     tools_layout.addWidget(prompt_textarea)
     tools_layout.addWidget(generate_button)
+    # tools_layout.addWidget(inpaint_button)
+    tools_layout.addWidget(inpaint_container)
     tools_layout.addWidget(strength_widget)
     tools_layout.addWidget(steps_widget)
     tools_layout.addWidget(guidance_widget)
-    tools_layout.addWidget(inpaint_selector_container)
+    # tools_layout.addWidget(inpaint_selector_container)
     tools_layout.addWidget(quicksave_button)
     tools_layout.addWidget(export_button)
     tools_layout.addWidget(increase_size_container)
+    tools_layout.addWidget(scratchpad_container)
     tools_widget.setLayout(tools_layout)
 
     load_image_button.clicked.connect(lambda : handle_load_image_button(widget))
@@ -609,13 +676,15 @@ if __name__ == '__main__':
     undo_button.clicked.connect(lambda : handle_undo_button(widget))
     redo_button.clicked.connect(lambda : handle_redo_button(widget))
     generate_button.clicked.connect(lambda : handle_generate_button(widget, stable_diffusion_handler, prompt_textarea.text()))
-    debug_button.clicked.connect(lambda : handle_debug_button(widget, stable_diffusion_handler, prompt_textarea.text()))
+    inpaint_button.clicked.connect(lambda : handle_inpaint_button(widget, stable_diffusion_handler, prompt_textarea.text()))
     quicksave_button.clicked.connect(lambda : handle_quicksave_button(widget))
     export_button.clicked.connect(lambda : handle_export_button(widget))
-    select_color_button.clicked.connect(lambda : handle_select_color_button(widget))
+    select_color_button.clicked.connect(lambda : handle_select_color_button(widget, select_color_button))
     paint_button.clicked.connect(lambda : handle_paint_button(widget))
     increase_size_button.clicked.connect(lambda : handle_increase_size_button(widget))
     decrease_size_button.clicked.connect(lambda : handle_decrease_size_button(widget))
+    show_scratchpad_button.clicked.connect(lambda : handle_show_scratchpad(widget, scratchpad))
+    paste_scratchpad_button.clicked.connect(lambda : handle_paste_scratchpad(widget, scratchpad))
 
     widget.set_np_image(testtexture)
     widget.resize_to_image()

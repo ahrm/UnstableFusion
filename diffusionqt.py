@@ -12,6 +12,7 @@ import pathlib
 import time
 import json
 import os
+import datetime
 
 SIZE_INCREASE_INCREMENT = 20
 
@@ -32,6 +33,23 @@ def get_quicksave_path():
 
 def get_unique_filename():
     return str(int(time.time())) + ".png"
+
+def get_most_recent_saved_file():
+    parent_path = pathlib.Path(__file__).parents[0]
+    folder_path = parent_path / 'quicksaves'
+
+    most_recent = datetime.datetime.min
+    most_recent_path = None
+
+    for file in os.listdir(folder_path):
+        path = folder_path / file
+        # get date
+        mtime = datetime.datetime.fromtimestamp(os.path.getmtime(path))
+        if mtime > most_recent:
+            most_recent = mtime
+            most_recent_path = path
+    return most_recent_path
+        
 
 def quicksave_image(np_image, file_path=None):
     if file_path == None:
@@ -65,6 +83,7 @@ shortcuts_ = {
     'open': 'O',
     'toggle_scratchpad': 'S',
     'quicksave': 'F5',
+    'quickload': 'F9',
     'select_color': 'C',
     'generate': 'Return',
     'inpaint': 'Space',
@@ -282,6 +301,9 @@ class PaintWidget(QWidget):
 
         self.quicksave_shortcut = QShortcut(QKeySequence(shortcuts['quicksave']), self)
         self.quicksave_shortcut.activated.connect(self.update_and(self.handle_quicksave_button))
+
+        self.quickload_shortcut = QShortcut(QKeySequence(shortcuts['quickload']), self)
+        self.quickload_shortcut.activated.connect(self.update_and(self.handle_quickload_button))
         
         self.prompt_textarea = prompt_textarea_
         self.stable_diffusion_handler = stable_diffusion_handler_
@@ -537,15 +559,18 @@ class PaintWidget(QWidget):
 
 
 
+    def load_file(self, file_name):
+        imdata = Image.open(file_name)
+        image_numpy = np.array(imdata)
+        self.set_np_image(image_numpy)
+        self.resize_to_image(only_if_smaller=True)
+        self.update()
+
     def handle_load_image_button(self):
         file_name = QFileDialog.getOpenFileName()
 
         if file_name[0]:
-            imdata = Image.open(file_name[0])
-            image_numpy = np.array(imdata)
-            self.set_np_image(image_numpy)
-            self.resize_to_image(only_if_smaller=True)
-            self.update()
+            self.load_file(file_name[0])
 
     def handle_erase_button(self):
         self.erase_selection()
@@ -586,6 +611,10 @@ class PaintWidget(QWidget):
         self.set_selection_image(inpainted_image)
         self.update()
 
+
+    def handle_quickload_button(self):
+        path = get_most_recent_saved_file()
+        self.load_file(path)
 
     def handle_quicksave_button(self):
         quicksave_image(self.np_image)
@@ -799,7 +828,14 @@ if __name__ == '__main__':
     prompt_textarea = QLineEdit()
     prompt_textarea.setPlaceholderText('Prompt')
     generate_button = QPushButton('Generate')
+    save_container = QWidget()
+    save_layout = QHBoxLayout()
     quicksave_button = QPushButton('Quick Save')
+    quickload_button = QPushButton('Quick Load')
+    save_layout.addWidget(quicksave_button)
+    save_layout.addWidget(quickload_button)
+    save_container.setLayout(save_layout)
+
     scratchpad_container = QWidget()
     scratchpad_layout = QHBoxLayout()
     show_scratchpad_button = QPushButton('Show Scratchpad')
@@ -872,7 +908,7 @@ if __name__ == '__main__':
     run_groupbox_layout.addWidget(generate_button)
     run_groupbox_layout.addWidget(inpaint_container)
     run_groupbox_layout.addWidget(reimagine_button)
-    save_groupbox_layout.addWidget(quicksave_button)
+    save_groupbox_layout.addWidget(save_container)
     save_groupbox_layout.addWidget(export_button)
     image_groupbox.setLayout(image_groupbox_layout)
     params_groupbox.setLayout(params_groupbox_layout)
@@ -893,6 +929,7 @@ if __name__ == '__main__':
     generate_button.clicked.connect(lambda : widget.handle_generate_button())
     inpaint_button.clicked.connect(lambda : widget.handle_inpaint_button())
     quicksave_button.clicked.connect(lambda : widget.handle_quicksave_button())
+    quickload_button.clicked.connect(lambda : widget.handle_quickload_button())
     export_button.clicked.connect(lambda : widget.handle_export_button())
     select_color_button.clicked.connect(lambda : widget.handle_select_color_button( select_color_button))
     paint_button.clicked.connect(lambda : widget.handle_paint_button())

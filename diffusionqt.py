@@ -705,11 +705,39 @@ def create_slider_widget(name, minimum=0, maximum=1, default=0.5, dtype=float, v
 
 
     return strength_widget, strength_slider, value_text
+
+def handle_coffee_button():
+    QDesktopServices.openUrl(QUrl('https://www.buymeacoffee.com/ahrm'))
+
+def handle_twitter_button():
+    QDesktopServices.openUrl(QUrl('https://twitter.com/Ali_Mostafavi_'))
+
+def handle_github_button():
+    QDesktopServices.openUrl(QUrl('https://github.com/ahrm'))
+
 if __name__ == '__main__':
     # stable_diffusion_handler = StableDiffusionHandler()
     stable_diffusion_handler = DummyStableDiffusionHandler()
 
+
     app = QApplication(sys.argv)
+    icons_path = pathlib.Path(__file__).parent / 'icons'
+    appicon = QIcon(str( icons_path / 'unstablefusion.png'))
+    github_icon = QIcon(str( icons_path / 'github.png'))
+    twitter_icon = QIcon(str( icons_path / 'twitter.png'))
+
+    app.setWindowIcon(appicon)
+
+    image_groupbox = QGroupBox('Edit Image')
+    params_groupbox = QGroupBox('Stable Diffusion Parameters')
+    run_groupbox = QGroupBox('Run Stable Diffusion')
+    save_groupbox = QGroupBox('Save')
+
+    image_groupbox_layout = QVBoxLayout()
+    params_groupbox_layout = QVBoxLayout()
+    run_groupbox_layout = QVBoxLayout()
+    save_groupbox_layout = QVBoxLayout()
+
     tools_widget = QWidget()
     tools_layout = QVBoxLayout()
     load_image_button = QPushButton('Load Image')
@@ -718,6 +746,7 @@ if __name__ == '__main__':
     paint_widgets_layout = QHBoxLayout()
     paint_button = QPushButton('Paint')
     select_color_button = QPushButton('Select Color')
+    paint_widgets_layout.addWidget(erase_button)
     paint_widgets_layout.addWidget(paint_button)
     paint_widgets_layout.addWidget(select_color_button)
     paint_widgets_container.setLayout(paint_widgets_layout)
@@ -792,23 +821,41 @@ if __name__ == '__main__':
     inpaint_layout.addWidget(inpaint_button)
     inpaint_container.setLayout(inpaint_layout)
 
-    tools_layout.addWidget(load_image_button)
-    tools_layout.addWidget(erase_button)
-    tools_layout.addWidget(paint_widgets_container)
-    tools_layout.addWidget(undo_redo_container)
-    tools_layout.addWidget(prompt_textarea)
-    tools_layout.addWidget(generate_button)
-    # tools_layout.addWidget(inpaint_button)
-    tools_layout.addWidget(inpaint_container)
-    tools_layout.addWidget(reimagine_button)
-    tools_layout.addWidget(strength_widget)
-    tools_layout.addWidget(steps_widget)
-    tools_layout.addWidget(guidance_widget)
-    # tools_layout.addWidget(inpaint_selector_container)
-    tools_layout.addWidget(quicksave_button)
-    tools_layout.addWidget(export_button)
-    tools_layout.addWidget(increase_size_container)
+    support_container = QWidget()
+    support_layout = QHBoxLayout()
+    coffee_button = QPushButton('Buy me a coffee')
+    github_button = QPushButton()
+    twitter_button = QPushButton()
+    github_button.setIcon(github_icon)
+    twitter_button.setIcon(twitter_icon)
+    support_layout.addWidget(coffee_button)
+    support_layout.addWidget(github_button)
+    support_layout.addWidget(twitter_button)
+    support_container.setLayout(support_layout)
+
+    image_groupbox_layout.addWidget(load_image_button)
+    image_groupbox_layout.addWidget(increase_size_container)
+    image_groupbox_layout.addWidget(paint_widgets_container)
+    image_groupbox_layout.addWidget(undo_redo_container)
+    params_groupbox_layout.addWidget(prompt_textarea)
+    params_groupbox_layout.addWidget(strength_widget)
+    params_groupbox_layout.addWidget(steps_widget)
+    params_groupbox_layout.addWidget(guidance_widget)
+    run_groupbox_layout.addWidget(generate_button)
+    run_groupbox_layout.addWidget(inpaint_container)
+    run_groupbox_layout.addWidget(reimagine_button)
+    save_groupbox_layout.addWidget(quicksave_button)
+    save_groupbox_layout.addWidget(export_button)
+    image_groupbox.setLayout(image_groupbox_layout)
+    params_groupbox.setLayout(params_groupbox_layout)
+    save_groupbox.setLayout(save_groupbox_layout)
+    run_groupbox.setLayout(run_groupbox_layout)
+    tools_layout.addWidget(image_groupbox)
+    tools_layout.addWidget(params_groupbox)
+    tools_layout.addWidget(run_groupbox)
+    tools_layout.addWidget(save_groupbox)
     tools_layout.addWidget(scratchpad_container)
+    tools_layout.addWidget(support_container)
     tools_widget.setLayout(tools_layout)
 
     load_image_button.clicked.connect(lambda : widget.handle_load_image_button())
@@ -826,8 +873,15 @@ if __name__ == '__main__':
     show_scratchpad_button.clicked.connect(lambda : widget.handle_show_scratchpad())
     paste_scratchpad_button.clicked.connect(lambda : widget.handle_paste_scratchpad())
     reimagine_button.clicked.connect(lambda : widget.handle_reimagine_button())
+    coffee_button.clicked.connect(lambda : handle_coffee_button())
+    twitter_button.clicked.connect(lambda : handle_twitter_button())
+    github_button.clicked.connect(lambda : handle_github_button())
 
+    widget.setWindowTitle('UnstableFusion')
+    scratchpad.setWindowTitle('Scratchpad')
+    tools_widget.setWindowTitle('Tools')
     widget.set_np_image(testtexture)
+    scratchpad.set_np_image(testtexture)
     widget.resize_to_image()
     widget.show()
     tools_widget.show()

@@ -108,7 +108,7 @@ class DummyStableDiffusionHandler:
     def __init__(self):
         pass
 
-    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5):
+    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1):
         inpainted_image = np.zeros_like(image)
         for i in range(inpainted_image.shape[1]):
             for j in range(inpainted_image.shape[0]):
@@ -120,7 +120,7 @@ class DummyStableDiffusionHandler:
         new_image[mask > 0] = inpainted_image[mask > 0]
         return Image.fromarray(new_image)
 
-    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5):
+    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5, seed=-1):
 
         np_im = np.zeros((height, width, 3), dtype=np.uint8)
         np_im[:, :, 2] = 255
@@ -130,7 +130,7 @@ class DummyStableDiffusionHandler:
             np_im[:, j, 2] = int((j / np_im.shape[0]) * 255)
         return Image.fromarray(np_im)
 
-    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5):
+    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1):
         return image
 
 def dummy_safety_checker(self):
@@ -169,7 +169,13 @@ class StableDiffusionHandler:
             feature_extractor=self.text2img.feature_extractor
         ).to("cuda")
     
-    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5):
+    def get_generator(self, seed):
+        if seed == -1:
+            return None
+        else:
+            return torch.Generator("cuda").manual_seed(seed)
+    
+    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1):
         image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
         mask_ = Image.fromarray(mask.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
 
@@ -180,21 +186,23 @@ class StableDiffusionHandler:
                 mask_image=mask_,
                 strength=strength,
                 num_inference_steps=steps,
-                guidance_scale=guidance_scale
+                guidance_scale=guidance_scale,
+                generator=self.get_generator(seed)
             )["sample"][0]
             return im.resize((image.shape[1], image.shape[0]), resample=Image.LANCZOS)
     
-    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5):
+    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1):
         with autocast("cuda"):
             im = self.text2img(
                 prompt=prompt,
                 width=512,
-                height=512
+                height=512,
+                generator=self.get_generator(seed)
             )["sample"][0]
 
             return im.resize((width, height), resample=Image.LANCZOS)
     
-    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5):
+    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1):
 
         image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
         with autocast("cuda"):
@@ -202,7 +210,8 @@ class StableDiffusionHandler:
                 [prompt],
                 init_image=image_,
                 num_inference_steps=steps,
-                guidance_scale=guidance_scale
+                guidance_scale=guidance_scale,
+                generator=self.get_generator(seed)
             )["sample"]
             print(len(results))
             im = results[0]
@@ -222,6 +231,7 @@ class PaintWidget(QWidget):
         self.strength = 0.75
         self.steps = 50
         self.guidance_scale = 7.5
+        self.seed = -1
 
         self.inpaint_method = inpaint_options[0]
 
@@ -553,7 +563,7 @@ class PaintWidget(QWidget):
         prompt = self.prompt_textarea.text()
         width = self.selection_rectangle.width()
         height = self.selection_rectangle.height()
-        image = self.stable_diffusion_handler.generate(prompt, width=width, height=height)
+        image = self.stable_diffusion_handler.generate(prompt, width=width, height=height, seed=self.seed)
         self.set_selection_image(image)
         self.update()
 
@@ -570,7 +580,8 @@ class PaintWidget(QWidget):
                                                     mask,
                                                     strength=self.strength,
                                                     steps=self.steps,
-                                                    guidance_scale=self.guidance_scale)
+                                                    guidance_scale=self.guidance_scale,
+                                                    seed=self.seed)
 
         self.set_selection_image(inpainted_image)
         self.update()
@@ -623,6 +634,9 @@ class PaintWidget(QWidget):
                         (self.selection_rectangle.width(), self.selection_rectangle.height()), Image.LANCZOS))
             self.set_selection_image(resized)
             self.update()
+    
+    def handle_seed_change(self, new_seed):
+        self.seed = new_seed
 
     def handle_reimagine_button(self):
 
@@ -632,7 +646,8 @@ class PaintWidget(QWidget):
         reimagined_image = self.stable_diffusion_handler.reimagine(prompt,
                                                     image,
                                                     steps=self.steps,
-                                                    guidance_scale=self.guidance_scale)
+                                                    guidance_scale=self.guidance_scale,
+                                                    seed=self.seed)
 
         self.set_selection_image(reimagined_image)
         self.update()
@@ -716,8 +731,8 @@ def handle_github_button():
     QDesktopServices.openUrl(QUrl('https://github.com/ahrm'))
 
 if __name__ == '__main__':
-    # stable_diffusion_handler = StableDiffusionHandler()
-    stable_diffusion_handler = DummyStableDiffusionHandler()
+    stable_diffusion_handler = StableDiffusionHandler()
+    # stable_diffusion_handler = DummyStableDiffusionHandler()
 
 
     app = QApplication(sys.argv)
@@ -758,6 +773,18 @@ if __name__ == '__main__':
     increase_size_layout.addWidget(increase_size_button)
     increase_size_layout.addWidget(decrease_size_button)
     increase_size_container.setLayout(increase_size_layout)
+
+    seed_container = QWidget()
+    seed_layout = QHBoxLayout()
+    seed_text = QLineEdit()
+    seed_label = QLabel('Seed')
+    seed_text.setText('-1')
+    seed_reset_button = QPushButton('↺')
+    seed_layout.addWidget(seed_label)
+    seed_layout.addWidget(seed_text)
+    seed_layout.addWidget(seed_reset_button)
+    seed_container.setLayout(seed_layout)
+
 
     undo_redo_container = QWidget()
     undo_redo_layout = QHBoxLayout()
@@ -841,6 +868,7 @@ if __name__ == '__main__':
     params_groupbox_layout.addWidget(strength_widget)
     params_groupbox_layout.addWidget(steps_widget)
     params_groupbox_layout.addWidget(guidance_widget)
+    params_groupbox_layout.addWidget(seed_container)
     run_groupbox_layout.addWidget(generate_button)
     run_groupbox_layout.addWidget(inpaint_container)
     run_groupbox_layout.addWidget(reimagine_button)
@@ -876,6 +904,17 @@ if __name__ == '__main__':
     coffee_button.clicked.connect(lambda : handle_coffee_button())
     twitter_button.clicked.connect(lambda : handle_twitter_button())
     github_button.clicked.connect(lambda : handle_github_button())
+
+    def seed_change_function(val):
+        try:
+            seed = int(val)
+            widget.handle_seed_change(seed)
+        except:
+            pass
+    
+    seed_text.textChanged.connect(seed_change_function)
+    seed_reset_button.clicked.connect(lambda : seed_text.setText('-1'))
+
 
     widget.setWindowTitle('UnstableFusion')
     scratchpad.setWindowTitle('Scratchpad')

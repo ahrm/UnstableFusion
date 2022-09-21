@@ -10,6 +10,9 @@ from diffusers import StableDiffusionPipeline, StableDiffusionInpaintPipeline, S
 import cv2
 import pathlib
 import time
+import json
+import os
+
 SIZE_INCREASE_INCREMENT = 20
 
 def cv2_telea(img, mask):
@@ -56,7 +59,7 @@ inpaint_functions = {
     'gaussian': gaussian_noise
 }
 
-shortcuts = {
+shortcuts_ = {
     'undo': 'Ctrl+Z',
     'redo': 'Ctrl+Shift+Z',
     'open': 'O',
@@ -71,6 +74,17 @@ shortcuts = {
     'decrease_size': '-',
     'paste_from_scratchpad': 'p',
 }
+
+def get_shortcut_dict():
+    parent_path = pathlib.Path(__file__).parents[0]
+    file_path = parent_path / 'keys.json'
+
+    if os.path.exists(file_path):
+        with open(file_path) as f:
+            json_content = json.load(f)
+        for key, value in json_content.items():
+            shortcuts_[key] = value
+    return shortcuts_
 
 def get_texture():
     SIZE = 512
@@ -220,6 +234,7 @@ class PaintWidget(QWidget):
         self.owner = None
 
 
+        shortcuts = get_shortcut_dict()
         self.paste_shortcut = QShortcut(QKeySequence(shortcuts['paste_from_scratchpad']), self)
         self.paste_shortcut.activated.connect(self.handle_paste_scratchpad)
 

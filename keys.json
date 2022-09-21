@@ -1,0 +1,15 @@
+{
+    "undo": "Ctrl+Z",
+    "redo": "Ctrl+Shift+Z",
+    "open": "O",
+    "toggle_scratchpad": "S",
+    "quicksave": "F5",
+    "select_color": "C",
+    "generate": "Return",
+    "inpaint": "Space",
+    "reimagine": "R",
+    "export": "Ctrl+S",
+    "increase_size": "+",
+    "decrease_size": "-",
+    "paste_from_scratchpad": "P"
+}

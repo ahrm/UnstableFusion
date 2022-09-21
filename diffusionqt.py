@@ -1,6 +1,7 @@
 from importlib.machinery import DEBUG_BYTECODE_SUFFIXES
 from random import expovariate
 from smtpd import DebuggingServer
+from turtle import width
 from xml.dom import minicompat
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
@@ -83,8 +84,15 @@ class DummyStableDiffusionHandler:
         pass
 
     def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5):
+        inpainted_image = np.zeros_like(image)
+        for i in range(inpainted_image.shape[1]):
+            for j in range(inpainted_image.shape[0]):
+                inpainted_image[i, j, 0] = 255 * i // inpainted_image.shape[1]
+                inpainted_image[i, j, 1] = 255 * j // inpainted_image.shape[1]
+
         new_image = image.copy()[:, :, :3]
-        new_image[mask > 0] = np.array([255, 0, 0])
+        # new_image[mask > 0] = np.array([255, 0, 0])
+        new_image[mask > 0] = inpainted_image[mask > 0]
         return Image.fromarray(new_image)
 
     def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5):
@@ -92,7 +100,9 @@ class DummyStableDiffusionHandler:
         np_im = np.zeros((height, width, 3), dtype=np.uint8)
         np_im[:, :, 2] = 255
         for i in range(np_im.shape[0]):
-            np_im[i, :, :] = np.array([0, int((i / np_im.shape[0]) * 255), 0])
+            np_im[i, :, 1] = int((i / np_im.shape[0]) * 255)
+        for j in range(np_im.shape[1]):
+            np_im[:, j, 2] = int((j / np_im.shape[0]) * 255)
         return Image.fromarray(np_im)
 
 class StableDiffusionHandler:
@@ -264,20 +274,26 @@ class PaintWidget(QWidget):
         return image_rect
 
     def crop_image_rect(self, image_rect):
+        source_rect = QRect(0, 0, self.selection_rectangle.width(), self.selection_rectangle.height())
+
         if image_rect.left() < 0:
+            source_rect.setLeft(-image_rect.left())
             image_rect.setLeft(0)
         if image_rect.right() >= self.qt_image.width():
+            source_rect.setRight(self.selection_rectangle.width() -image_rect.right() + self.qt_image.width() - 1)
             image_rect.setRight(self.qt_image.width())
         if image_rect.top() < 0:
+            source_rect.setTop(-image_rect.top())
             image_rect.setTop(0)
         if image_rect.bottom() >= self.qt_image.height():
+            source_rect.setBottom(self.selection_rectangle.height() -image_rect.bottom() + self.qt_image.height() - 1)
             image_rect.setBottom(self.qt_image.height())
-        return image_rect
+        return image_rect, source_rect
 
     def paint_selection(self, add_to_history=True):
         if self.selection_rectangle != None:
             image_rect = self.map_widget_to_image_rect(self.selection_rectangle)
-            image_rect = self.crop_image_rect(image_rect)
+            image_rect, source_rect = self.crop_image_rect(image_rect)
             new_image = self.np_image.copy()
             new_image[image_rect.top():image_rect.bottom(), image_rect.left():image_rect.right(), :3] = self.color
             new_image[image_rect.top():image_rect.bottom(), image_rect.left():image_rect.right(), 3] = 255
@@ -286,7 +302,7 @@ class PaintWidget(QWidget):
     def erase_selection(self, add_to_history=True):
         if self.selection_rectangle != None:
             image_rect = self.map_widget_to_image_rect(self.selection_rectangle)
-            image_rect = self.crop_image_rect(image_rect)
+            image_rect, source_rect = self.crop_image_rect(image_rect)
             new_image = self.np_image.copy()
             new_image[image_rect.top():image_rect.bottom(), image_rect.left():image_rect.right(), :] = 0
             self.set_np_image(new_image, add_to_history=add_to_history)
@@ -294,12 +310,13 @@ class PaintWidget(QWidget):
     def set_selection_image(self, patch_image):
         if self.selection_rectangle != None:
             image_rect = self.map_widget_to_image_rect(self.selection_rectangle)
+            image_rect, source_rect = self.crop_image_rect(image_rect)
             new_image = self.np_image.copy()
             target_width = image_rect.width()
             target_height = image_rect.height()
-            patch_np = np.array(patch_image)[:target_height, :target_width, :]
+            patch_np = np.array(patch_image)[source_rect.top():source_rect.bottom(), source_rect.left():source_rect.right(), :][:target_height, :target_width, :]
             patch_alpha = np.ones((patch_np.shape[0], patch_np.shape[1])).astype(np.uint8) * 255
-            new_image[image_rect.top():image_rect.bottom()+1, image_rect.left():image_rect.right()+1, :] = \
+            new_image[image_rect.top():image_rect.top() + patch_np.shape[0], image_rect.left():image_rect.left()+patch_np.shape[1], :] = \
                 np.concatenate(
                     [patch_np, patch_alpha[:, :, None]],
                 axis=-1)
@@ -308,8 +325,11 @@ class PaintWidget(QWidget):
 
     def get_selection_np_image(self):
         image_rect = self.map_widget_to_image_rect(self.selection_rectangle)
-        image_rect = self.crop_image_rect(image_rect)
-        return self.np_image[image_rect.top():image_rect.bottom()+1, image_rect.left():image_rect.right()+1, :]
+        image_rect, source_rect = self.crop_image_rect(image_rect)
+        result = np.zeros((self.selection_rectangle.height(), self.selection_rectangle.width(), 4), dtype=np.uint8)
+        result[source_rect.top():source_rect.bottom(), source_rect.left():source_rect.right(), :] = \
+            self.np_image[image_rect.top():image_rect.bottom(), image_rect.left():image_rect.right(), :]
+        return result
 
     def increase_image_size(self):
         H = SIZE_INCREASE_INCREMENT // 2
@@ -500,8 +520,8 @@ def handle_decrease_size_button(paint_widget):
     paint_widget.update()
 
 if __name__ == '__main__':
-    # stable_diffusion_handler = StableDiffusionHandler()
-    stable_diffusion_handler = DummyStableDiffusionHandler()
+    stable_diffusion_handler = StableDiffusionHandler()
+    # stable_diffusion_handler = DummyStableDiffusionHandler()
 
     app = QApplication(sys.argv)
     tools_widget = QWidget()

@@ -144,6 +144,7 @@ class PaintWidget(QWidget):
         self.inpaint_method = inpaint_options[0]
 
         self.history = []
+        self.future = []
     
     def set_strength(self, new_strength):
         self.strength = new_strength
@@ -159,10 +160,21 @@ class PaintWidget(QWidget):
 
     def undo(self):
         if len(self.history) > 0:
+            self.future = [self.np_image.copy()] + self.future
             self.set_np_image(self.history[-1], add_to_history=False)
             self.history = self.history[:-1]
 
+    def redo(self):
+        if len(self.future) > 0:
+            prev_image = self.np_image.copy()
+            self.set_np_image(self.future[0], add_to_history=False)
+            self.future = self.future[1:]
+            self.history.append(prev_image)
+
     def set_np_image(self, arr, add_to_history=True):
+        if add_to_history == True:
+            self.future = []
+
         if add_to_history and (not (self.np_image is None)):
             self.history.append(self.np_image.copy())
 
@@ -316,6 +328,10 @@ def handle_undo_button(paint_widget):
     paint_widget.undo()
     widget.update()
 
+def handle_redo_button(paint_widget):
+    paint_widget.redo()
+    widget.update()
+
 def handle_generate_button(paint_widget, diffusion_handler, prompt):
     width = paint_widget.selection_rectangle.width()
     height = paint_widget.selection_rectangle.height()
@@ -412,14 +428,21 @@ def handle_export_button(paint_widget):
         quicksave_image(paint_widget.np_image, file_path=path[0])
 
 if __name__ == '__main__':
-    stable_diffusion_handler = StableDiffusionHandler()
+    # stable_diffusion_handler = StableDiffusionHandler()
 
     app = QApplication(sys.argv)
     tools_widget = QWidget()
     tools_layout = QVBoxLayout()
     load_image_button = QPushButton('Load Image')
     erase_button = QPushButton('Erase')
+    undo_redo_container = QWidget()
+    undo_redo_layout = QHBoxLayout()
     undo_button = QPushButton('Undo')
+    redo_button = QPushButton('Redo')
+    undo_redo_layout.addWidget(undo_button)
+    undo_redo_layout.addWidget(redo_button)
+    undo_redo_container.setLayout(undo_redo_layout)
+
     debug_button = QPushButton('Debug')
     prompt_textarea = QLineEdit()
     prompt_textarea.setPlaceholderText('Prompt')
@@ -458,7 +481,7 @@ if __name__ == '__main__':
 
     tools_layout.addWidget(load_image_button)
     tools_layout.addWidget(erase_button)
-    tools_layout.addWidget(undo_button)
+    tools_layout.addWidget(undo_redo_container)
     tools_layout.addWidget(debug_button)
     tools_layout.addWidget(prompt_textarea)
     tools_layout.addWidget(generate_button)
@@ -473,6 +496,7 @@ if __name__ == '__main__':
     load_image_button.clicked.connect(lambda : handle_load_image_button(widget))
     erase_button.clicked.connect(lambda : handle_erase_button(widget))
     undo_button.clicked.connect(lambda : handle_undo_button(widget))
+    redo_button.clicked.connect(lambda : handle_redo_button(widget))
     generate_button.clicked.connect(lambda : handle_generate_button(widget, stable_diffusion_handler, prompt_textarea.text()))
     debug_button.clicked.connect(lambda : handle_debug_button(widget, stable_diffusion_handler, prompt_textarea.text()))
     quicksave_button.clicked.connect(lambda : handle_quicksave_button(widget))

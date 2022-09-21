@@ -21,11 +21,6 @@ def cv2_telea(img, mask):
 
 
 def cv2_ns(img, mask):
-    print('-' * 20)
-    print(img.dtype)
-    print(mask.dtype)
-    print(img.shape)
-    print(mask.shape)
     ret = cv2.inpaint(img, 255 - mask, 5, cv2.INPAINT_NS)
     return ret, mask
 
@@ -145,6 +140,7 @@ class PaintWidget(QWidget):
 
         self.history = []
         self.future = []
+        self.color = np.array([0, 0, 0])
     
     def set_strength(self, new_strength):
         self.strength = new_strength
@@ -157,6 +153,9 @@ class PaintWidget(QWidget):
     
     def set_inpaint_method(self, method):
         self.inpaint_method = method
+    
+    def set_color(self, new_color):
+        self.color = np.array([new_color.red(), new_color.green(), new_color.blue()]) / 255
 
     def undo(self):
         if len(self.history) > 0:
@@ -187,12 +186,14 @@ class PaintWidget(QWidget):
 
             if e.buttons() & Qt.RightButton:
                 self.erase_selection(False)
+            if e.buttons() & Qt.MidButton:
+                self.paint_selection(False)
 
             self.update()
 
     def mouseReleaseEvent(self, e):
-        if e.button() == Qt.LeftButton:
-            self.is_dragging = False
+        # if e.button() == Qt.LeftButton:
+        self.is_dragging = False
 
     def update_selection_rectangle(self):
         if self.selection_rectangle != None:
@@ -201,7 +202,12 @@ class PaintWidget(QWidget):
             ) - self.selection_rectangle_size[1] / 2, *self.selection_rectangle_size)
 
     def wheelEvent(self, e):
-        self.selection_rectangle_size = [self.selection_rectangle_size[0] + e.angleDelta().y() / 10, self.selection_rectangle_size[1] + e.angleDelta().y() / 10]
+        delta = 1
+        if e.angleDelta().y() < 0:
+            delta = -1
+        delta *= max(1, self.selection_rectangle_size[0] / 10)
+
+        self.selection_rectangle_size = [self.selection_rectangle_size[0] + delta, self.selection_rectangle_size[1] + delta]
 
         if self.selection_rectangle_size[0] <= 0:
             self.selection_rectangle_size[0] = 1
@@ -249,6 +255,15 @@ class PaintWidget(QWidget):
             image_rect.setBottom(self.qt_image.height())
         return image_rect
 
+    def paint_selection(self, add_to_history=True):
+        if self.selection_rectangle != None:
+            image_rect = self.map_widget_to_image_rect(self.selection_rectangle)
+            image_rect = self.crop_image_rect(image_rect)
+            new_image = self.np_image.copy()
+            new_image[image_rect.top():image_rect.bottom(), image_rect.left():image_rect.right(), :3] = self.color
+            new_image[image_rect.top():image_rect.bottom(), image_rect.left():image_rect.right(), 3] = 1
+            self.set_np_image(new_image, add_to_history=add_to_history)
+
     def erase_selection(self, add_to_history=True):
         if self.selection_rectangle != None:
             image_rect = self.map_widget_to_image_rect(self.selection_rectangle)
@@ -279,17 +294,21 @@ class PaintWidget(QWidget):
 
     def mousePressEvent(self, e):
         # return super().mousePressEvent(e)
-        if e.button() == Qt.LeftButton:
-            top_left = QPoint(e.pos().x() - self.selection_rectangle_size[0] / 2, e.pos().y() - self.selection_rectangle_size[1] / 2)
+        top_left = QPoint(e.pos().x() - self.selection_rectangle_size[0] / 2, e.pos().y() - self.selection_rectangle_size[1] / 2)
+        self.selection_rectangle = QRect(top_left, QSize(*self.selection_rectangle_size))
 
-            self.selection_rectangle = QRect(top_left, QSize(*self.selection_rectangle_size))
+        if e.button() == Qt.LeftButton:
             self.is_dragging = True
 
         if e.button() == Qt.RightButton:
             self.erase_selection()
+            self.is_dragging = True
+
         if e.button() == Qt.MidButton:
-            self.selection_rectangle_size = (256, 256)
-            self.update_selection_rectangle()
+            self.paint_selection()
+            self.is_dragging = True
+            # self.selection_rectangle_size = (256, 256)
+            # self.update_selection_rectangle()
 
         self.update()
 
@@ -433,6 +452,15 @@ def handle_export_button(paint_widget):
     if path[0]:
         quicksave_image(paint_widget.np_image, file_path=path[0])
 
+def handle_select_color_button(paint_widget):
+    color = QColorDialog.getColor()
+    if color.isValid():
+        paint_widget.set_color(color)
+
+def handle_paint_button(paint_widget):
+    paint_widget.paint_selection()
+    paint_widget.update()
+
 if __name__ == '__main__':
     # stable_diffusion_handler = StableDiffusionHandler()
 
@@ -441,6 +469,14 @@ if __name__ == '__main__':
     tools_layout = QVBoxLayout()
     load_image_button = QPushButton('Load Image')
     erase_button = QPushButton('Erase')
+    paint_widgets_container = QWidget()
+    paint_widgets_layout = QHBoxLayout()
+    paint_button = QPushButton('Paint')
+    select_color_button = QPushButton('Select Color')
+    paint_widgets_layout.addWidget(paint_button)
+    paint_widgets_layout.addWidget(select_color_button)
+    paint_widgets_container.setLayout(paint_widgets_layout)
+
     undo_redo_container = QWidget()
     undo_redo_layout = QHBoxLayout()
     undo_button = QPushButton('Undo')
@@ -487,6 +523,7 @@ if __name__ == '__main__':
 
     tools_layout.addWidget(load_image_button)
     tools_layout.addWidget(erase_button)
+    tools_layout.addWidget(paint_widgets_container)
     tools_layout.addWidget(undo_redo_container)
     tools_layout.addWidget(debug_button)
     tools_layout.addWidget(prompt_textarea)
@@ -507,6 +544,8 @@ if __name__ == '__main__':
     debug_button.clicked.connect(lambda : handle_debug_button(widget, stable_diffusion_handler, prompt_textarea.text()))
     quicksave_button.clicked.connect(lambda : handle_quicksave_button(widget))
     export_button.clicked.connect(lambda : handle_export_button(widget))
+    select_color_button.clicked.connect(lambda : handle_select_color_button(widget))
+    paint_button.clicked.connect(lambda : handle_paint_button(widget))
 
     widget.set_np_image(testtexture)
     widget.resize_to_image()

@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 import torch
 from torch import autocast
-from diffusers import StableDiffusionPipeline, StableDiffusionInpaintPipeline
+from diffusers import StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionImg2ImgPipeline
 import cv2
 import pathlib
 import time
@@ -100,6 +100,11 @@ class DummyStableDiffusionHandler:
             np_im[:, j, 2] = int((j / np_im.shape[0]) * 255)
         return Image.fromarray(np_im)
 
+def dummy_safety_checker(self):
+        def check(images, *args, **kwargs):
+            return images, [False] * len(images)
+
+        return check
 class StableDiffusionHandler:
 
     def __init__(self):
@@ -109,6 +114,7 @@ class StableDiffusionHandler:
              torch_dtype=torch.float16,
              use_auth_token=True).to("cuda")
 
+        # self.text2img.safety_checker = dummy_safety_checker
 
         self.inpainter = StableDiffusionInpaintPipeline(
             vae=self.text2img.vae,
@@ -116,6 +122,16 @@ class StableDiffusionHandler:
             tokenizer=self.text2img.tokenizer,
             unet=self.text2img.unet,
             scheduler=self.text2img.scheduler,
+            safety_checker=self.text2img.safety_checker,
+            feature_extractor=self.text2img.feature_extractor
+        ).to("cuda")
+
+        self.img2img = StableDiffusionImg2ImgPipeline(
+            unet=self.text2img.unet,
+            scheduler=self.text2img.scheduler,
+            vae=self.text2img.vae,
+            text_encoder=self.text2img.text_encoder,
+            tokenizer=self.text2img.tokenizer,
             safety_checker=self.text2img.safety_checker,
             feature_extractor=self.text2img.feature_extractor
         ).to("cuda")
@@ -144,6 +160,20 @@ class StableDiffusionHandler:
             )["sample"][0]
 
             return im.resize((width, height), resample=Image.LANCZOS)
+    
+    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5):
+
+        image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
+        with autocast("cuda"):
+            results = self.img2img(
+                [prompt],
+                init_image=image_,
+                num_inference_steps=steps,
+                guidance_scale=guidance_scale
+            )["sample"]
+            print(len(results))
+            im = results[0]
+            return im.resize((image.shape[1], image.shape[0]), resample=Image.LANCZOS)
 
 class PaintWidget(QWidget):
 
@@ -212,6 +242,12 @@ class PaintWidget(QWidget):
             self.history.append(prev_image)
 
     def set_np_image(self, arr, add_to_history=True):
+        if arr.shape[-1] == 3:
+            arr = np.concatenate([arr, np.ones(arr.shape[:2] + (1,)) * 255], axis=-1)
+
+        if arr.dtype != np.uint8:
+            arr = arr.astype(np.uint8)
+
         if add_to_history == True:
             self.future = []
 
@@ -568,6 +604,22 @@ def handle_paste_scratchpad(paint_widget, scratchpad):
         paint_widget.set_selection_image(resized)
         paint_widget.update()
 
+def handle_reimagine_button(paint_widget, diffusion_handler, prompt):
+
+    image_ = paint_widget.get_selection_np_image()
+    image = image_[:, :, :3]
+
+    # image, _ = inpaint_functions[paint_widget.inpaint_method](image, 255 - mask)
+
+    # def reimagine(self, prompt, image, steps=50, guidance_scale=7.5):
+    reimagined_image = diffusion_handler.reimagine(prompt,
+                                                image,
+                                                steps=paint_widget.steps,
+                                                guidance_scale=paint_widget.guidance_scale)
+
+    paint_widget.set_selection_image(reimagined_image)
+    paint_widget.update()
+
 if __name__ == '__main__':
     stable_diffusion_handler = StableDiffusionHandler()
     # stable_diffusion_handler = DummyStableDiffusionHandler()
@@ -601,6 +653,7 @@ if __name__ == '__main__':
     undo_redo_layout.addWidget(redo_button)
     undo_redo_container.setLayout(undo_redo_layout)
 
+    reimagine_button = QPushButton('Reimagine')
     inpaint_button = QPushButton('Inpaint')
     prompt_textarea = QLineEdit()
     prompt_textarea.setPlaceholderText('Prompt')
@@ -661,6 +714,7 @@ if __name__ == '__main__':
     tools_layout.addWidget(generate_button)
     # tools_layout.addWidget(inpaint_button)
     tools_layout.addWidget(inpaint_container)
+    tools_layout.addWidget(reimagine_button)
     tools_layout.addWidget(strength_widget)
     tools_layout.addWidget(steps_widget)
     tools_layout.addWidget(guidance_widget)
@@ -685,6 +739,7 @@ if __name__ == '__main__':
     decrease_size_button.clicked.connect(lambda : handle_decrease_size_button(widget))
     show_scratchpad_button.clicked.connect(lambda : handle_show_scratchpad(widget, scratchpad))
     paste_scratchpad_button.clicked.connect(lambda : handle_paste_scratchpad(widget, scratchpad))
+    reimagine_button.clicked.connect(lambda : handle_reimagine_button(widget, stable_diffusion_handler, prompt_textarea.text()))
 
     widget.set_np_image(testtexture)
     widget.resize_to_image()

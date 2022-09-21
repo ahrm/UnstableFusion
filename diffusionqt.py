@@ -14,6 +14,7 @@ from diffusers import StableDiffusionPipeline, StableDiffusionInpaintPipeline
 import cv2
 import pathlib
 import time
+SIZE_INCREASE_INCREMENT = 20
 
 def cv2_telea(img, mask):
     ret = cv2.inpaint(img, 255 - mask, 5, cv2.INPAINT_TELEA)
@@ -75,6 +76,24 @@ def qimage_from_array(arr):
         return  QImage(arr.astype('uint8').data, arr.shape[1], arr.shape[0], QImage.Format_RGBA8888)
 
 testimage = qimage_from_array(testtexture)
+
+class DummyStableDiffusionHandler:
+
+    def __init__(self):
+        pass
+
+    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5):
+        new_image = image.copy()[:, :, :3]
+        new_image[mask > 0] = np.array([255, 0, 0])
+        return Image.fromarray(new_image)
+
+    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5):
+
+        np_im = np.zeros((height, width, 3), dtype=np.uint8)
+        np_im[:, :, 2] = 255
+        for i in range(np_im.shape[0]):
+            np_im[i, :, :] = np.array([0, int((i / np_im.shape[0]) * 255), 0])
+        return Image.fromarray(np_im)
 
 class StableDiffusionHandler:
 
@@ -292,6 +311,16 @@ class PaintWidget(QWidget):
         image_rect = self.crop_image_rect(image_rect)
         return self.np_image[image_rect.top():image_rect.bottom()+1, image_rect.left():image_rect.right()+1, :]
 
+    def increase_image_size(self):
+        H = SIZE_INCREASE_INCREMENT // 2
+        new_image = np.zeros((self.np_image.shape[0] + SIZE_INCREASE_INCREMENT, self.np_image.shape[1] + SIZE_INCREASE_INCREMENT, 4), dtype=np.uint8)
+        new_image[H:-H, H:-H, :] = self.np_image
+        self.set_np_image(new_image)
+
+    def decrease_image_size(self):
+        H = SIZE_INCREASE_INCREMENT // 2
+        self.set_np_image(self.np_image[H:-H, H:-H, :])
+
     def mousePressEvent(self, e):
         # return super().mousePressEvent(e)
         top_left = QPoint(e.pos().x() - self.selection_rectangle_size[0] / 2, e.pos().y() - self.selection_rectangle_size[1] / 2)
@@ -461,8 +490,18 @@ def handle_paint_button(paint_widget):
     paint_widget.paint_selection()
     paint_widget.update()
 
+def handle_increase_size_button(paint_widget):
+    paint_widget.increase_image_size()
+    paint_widget.resize_to_image(only_if_smaller=True)
+    paint_widget.update()
+
+def handle_decrease_size_button(paint_widget):
+    paint_widget.decrease_image_size()
+    paint_widget.update()
+
 if __name__ == '__main__':
-    stable_diffusion_handler = StableDiffusionHandler()
+    # stable_diffusion_handler = StableDiffusionHandler()
+    stable_diffusion_handler = DummyStableDiffusionHandler()
 
     app = QApplication(sys.argv)
     tools_widget = QWidget()
@@ -476,6 +515,14 @@ if __name__ == '__main__':
     paint_widgets_layout.addWidget(paint_button)
     paint_widgets_layout.addWidget(select_color_button)
     paint_widgets_container.setLayout(paint_widgets_layout)
+
+    increase_size_container = QWidget()
+    increase_size_layout = QHBoxLayout()
+    increase_size_button = QPushButton('Increase Size')
+    decrease_size_button = QPushButton('Decrease Size')
+    increase_size_layout.addWidget(increase_size_button)
+    increase_size_layout.addWidget(decrease_size_button)
+    increase_size_container.setLayout(increase_size_layout)
 
     undo_redo_container = QWidget()
     undo_redo_layout = QHBoxLayout()
@@ -534,6 +581,7 @@ if __name__ == '__main__':
     tools_layout.addWidget(inpaint_selector_container)
     tools_layout.addWidget(quicksave_button)
     tools_layout.addWidget(export_button)
+    tools_layout.addWidget(increase_size_container)
     tools_widget.setLayout(tools_layout)
 
     load_image_button.clicked.connect(lambda : handle_load_image_button(widget))
@@ -546,6 +594,8 @@ if __name__ == '__main__':
     export_button.clicked.connect(lambda : handle_export_button(widget))
     select_color_button.clicked.connect(lambda : handle_select_color_button(widget))
     paint_button.clicked.connect(lambda : handle_paint_button(widget))
+    increase_size_button.clicked.connect(lambda : handle_increase_size_button(widget))
+    decrease_size_button.clicked.connect(lambda : handle_decrease_size_button(widget))
 
     widget.set_np_image(testtexture)
     widget.resize_to_image()

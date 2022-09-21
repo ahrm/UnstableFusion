@@ -155,7 +155,7 @@ class PaintWidget(QWidget):
         self.inpaint_method = method
     
     def set_color(self, new_color):
-        self.color = np.array([new_color.red(), new_color.green(), new_color.blue()]) / 255
+        self.color = np.array([new_color.red(), new_color.green(), new_color.blue()])
 
     def undo(self):
         if len(self.history) > 0:
@@ -261,7 +261,7 @@ class PaintWidget(QWidget):
             image_rect = self.crop_image_rect(image_rect)
             new_image = self.np_image.copy()
             new_image[image_rect.top():image_rect.bottom(), image_rect.left():image_rect.right(), :3] = self.color
-            new_image[image_rect.top():image_rect.bottom(), image_rect.left():image_rect.right(), 3] = 1
+            new_image[image_rect.top():image_rect.bottom(), image_rect.left():image_rect.right(), 3] = 255
             self.set_np_image(new_image, add_to_history=add_to_history)
 
     def erase_selection(self, add_to_history=True):
@@ -462,7 +462,7 @@ def handle_paint_button(paint_widget):
     paint_widget.update()
 
 if __name__ == '__main__':
-    # stable_diffusion_handler = StableDiffusionHandler()
+    stable_diffusion_handler = StableDiffusionHandler()
 
     app = QApplication(sys.argv)
     tools_widget = QWidget()

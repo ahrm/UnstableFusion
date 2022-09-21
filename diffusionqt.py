@@ -201,15 +201,21 @@ class PaintWidget(QWidget):
             ) - self.selection_rectangle_size[1] / 2, *self.selection_rectangle_size)
 
     def wheelEvent(self, e):
-        self.selection_rectangle_size = (self.selection_rectangle_size[0] + e.angleDelta().y() / 10, self.selection_rectangle_size[1] + e.angleDelta().y() / 10)
+        self.selection_rectangle_size = [self.selection_rectangle_size[0] + e.angleDelta().y() / 10, self.selection_rectangle_size[1] + e.angleDelta().y() / 10]
+
+        if self.selection_rectangle_size[0] <= 0:
+            self.selection_rectangle_size[0] = 1
+        if self.selection_rectangle_size[1] <= 0:
+            self.selection_rectangle_size[1] = 1
+
+        if self.selection_rectangle_size[0] > 512:
+            self.selection_rectangle_size[0] = 512
+        if self.selection_rectangle_size[1] > 512:
+            self.selection_rectangle_size[1] = 512
+
         if self.selection_rectangle != None:
             self.update_selection_rectangle()
         self.update()
-        # if e.angleDelta().y() > 0:
-        # 	pass
-        # 	self.s
-        # else:
-        # 	pass
         
     def resize_to_image(self, only_if_smaller=False):
         if self.qt_image != None:

@@ -604,8 +604,11 @@ class PaintWidget(QWidget):
             painter.drawRect(self.selection_rectangle)
         if self.should_preview_scratchpad and (self.scratchpad != None) and (self.scratchpad.isVisible()):
             if (not (self.scratchpad.np_image is None)) and (not (self.scratchpad.selection_rectangle is None)) and (not (self.selection_rectangle is None)):
-                image = np.array(Image.fromarray(self.scratchpad.get_selection_np_image()).resize((self.selection_rectangle.width(), self.selection_rectangle.height()), Image.LANCZOS))
-                painter.drawImage(self.selection_rectangle, qimage_from_array(image))
+                try:
+                    image = np.array(Image.fromarray(self.scratchpad.get_selection_np_image()).resize((self.selection_rectangle.width(), self.selection_rectangle.height()), Image.LANCZOS))
+                    painter.drawImage(self.selection_rectangle, qimage_from_array(image))
+                except:
+                    pass
 
 
 

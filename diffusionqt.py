@@ -886,6 +886,11 @@ if __name__ == '__main__':
     save_layout.addWidget(quickload_button)
     save_container.setLayout(save_layout)
 
+    generate_button.setStyleSheet('QPushButton {background: green; color: white;}')
+    inpaint_button.setStyleSheet('QPushButton {background: green; color: white;}')
+    reimagine_button.setStyleSheet('QPushButton {background: green; color: white;}')
+
+
     scratchpad_container = QWidget()
     scratchpad_layout = QHBoxLayout()
     show_scratchpad_button = QPushButton('Show Scratchpad')
@@ -1073,7 +1078,6 @@ if __name__ == '__main__':
     
     seed_text.textChanged.connect(seed_change_function)
     seed_reset_button.clicked.connect(lambda : seed_text.setText('-1'))
-
 
     widget.setWindowTitle('UnstableFusion')
     scratchpad.setWindowTitle('Scratchpad')

@@ -193,7 +193,9 @@ class ServerStableDiffusionHandler:
                 'strength': strength,
                 'steps': steps,
                 'guidance_scale': guidance_scale,
-                'seed': seed
+                'seed': seed,
+                'width': width,
+                'height': height
             }
             url = self.addr + 'generate'
 

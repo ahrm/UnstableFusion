@@ -76,6 +76,9 @@ class StableDiffusionHandler:
                 prompt=prompt,
                 width=512,
                 height=512,
+                strength=strength,
+                num_inference_steps=steps,
+                guidance_scale=guidance_scale,
                 generator=self.get_generator(seed)
             )["sample"][0]
 
@@ -155,8 +158,10 @@ def run_app():
         steps = data["steps"]
         guidance_scale = data["guidance_scale"]
         seed = data["seed"]
+        width = data["width"]
+        height = data["height"]
 
-        generated = stable_diffusion_handler.generate(prompt, strength=strength, steps=steps, guidance_scale=guidance_scale, seed=seed)
+        generated = stable_diffusion_handler.generate(prompt, strength=strength, steps=steps, guidance_scale=guidance_scale, seed=seed, width=width, height=height)
 
         return jsonify({
             "status": "success",

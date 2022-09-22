@@ -811,7 +811,7 @@ def handle_twitter_button():
     QDesktopServices.openUrl(QUrl('https://twitter.com/Ali_Mostafavi_'))
 
 def handle_github_button():
-    QDesktopServices.openUrl(QUrl('https://github.com/ahrm'))
+    QDesktopServices.openUrl(QUrl('https://github.com/ahrm/UnstableFusion'))
 
 if __name__ == '__main__':
     stbale_diffusion_manager = StableDiffusionManager()

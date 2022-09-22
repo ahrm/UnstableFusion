@@ -92,6 +92,7 @@ shortcuts_ = {
     'increase_size': '+',
     'decrease_size': '-',
     'paste_from_scratchpad': 'p',
+    'toggle_preview': 'T',
 }
 
 def get_shortcut_dict():
@@ -262,6 +263,8 @@ class PaintWidget(QWidget):
         self.guidance_scale = 7.5
         self.seed = -1
 
+        self.should_preview_scratchpad = False
+
         self.inpaint_method = inpaint_options[0]
 
         self.history = []
@@ -271,6 +274,8 @@ class PaintWidget(QWidget):
         self.setAcceptDrops(True)
         self.scratchpad = None
         self.owner = None
+
+        self.should_limit_box_size = True
 
 
         shortcuts = get_shortcut_dict()
@@ -314,9 +319,18 @@ class PaintWidget(QWidget):
 
         self.quickload_shortcut = QShortcut(QKeySequence(shortcuts['quickload']), self)
         self.quickload_shortcut.activated.connect(self.update_and(self.handle_quickload_button))
+
+        self.toggle_preview_shortcut = QShortcut(QKeySequence(shortcuts['toggle_preview']), self)
+        self.toggle_preview_shortcut.activated.connect(self.update_and(self.toggle_should_preview_scratchpad))
         
         self.prompt_textarea = prompt_textarea_
         self.stable_diffusion_manager = stable_diffusion_manager_
+
+    def set_should_preview_scratchpad(self, val):
+        self.should_preview_scratchpad = val
+    
+    def toggle_should_preview_scratchpad(self):
+        self.set_should_preview_scratchpad(not self.should_preview_scratchpad)
 
     def get_handler(self):
         return self.stable_diffusion_manager.get_handler()
@@ -420,15 +434,19 @@ class PaintWidget(QWidget):
         if self.selection_rectangle_size[1] <= 0:
             self.selection_rectangle_size[1] = 1
 
-        if self.selection_rectangle_size[0] > 512:
-            self.selection_rectangle_size[0] = 512
-        if self.selection_rectangle_size[1] > 512:
-            self.selection_rectangle_size[1] = 512
+        if self.should_limit_box_size:
+            if self.selection_rectangle_size[0] > 512:
+                self.selection_rectangle_size[0] = 512
+            if self.selection_rectangle_size[1] > 512:
+                self.selection_rectangle_size[1] = 512
 
         if self.selection_rectangle != None:
             self.update_selection_rectangle()
         self.update()
         
+    def set_should_limit_box_size(self, val):
+        self.should_limit_box_size = val
+
     def resize_to_image(self, only_if_smaller=False):
         if self.qt_image != None:
             if only_if_smaller:
@@ -565,7 +583,7 @@ class PaintWidget(QWidget):
             # painter.setBrush(redbrush)
             painter.setPen(QPen(Qt.red,  1, Qt.SolidLine))
             painter.drawRect(self.selection_rectangle)
-        if self.scratchpad != None and (self.scratchpad.isVisible()):
+        if self.should_preview_scratchpad and (self.scratchpad != None) and (self.scratchpad.isVisible()):
             if (not (self.scratchpad.np_image is None)) and (not (self.scratchpad.selection_rectangle is None)) and (not (self.selection_rectangle is None)):
                 image = np.array(Image.fromarray(self.scratchpad.get_selection_np_image()).resize((self.selection_rectangle.width(), self.selection_rectangle.height()), Image.LANCZOS))
                 painter.drawImage(self.selection_rectangle, qimage_from_array(image))
@@ -774,9 +792,6 @@ def handle_github_button():
     QDesktopServices.openUrl(QUrl('https://github.com/ahrm'))
 
 if __name__ == '__main__':
-    # stable_diffusion_handler = StableDiffusionHandler()
-    # stable_diffusion_handler = DummyStableDiffusionHandler()
-    # stable_diffusion_handler = ServerStableDiffusionHandler('https://yoga-receptor-use-band.trycloudflare.com')
     stbale_diffusion_manager = StableDiffusionManager()
 
 
@@ -864,12 +879,27 @@ if __name__ == '__main__':
     scratchpad = PaintWidget(prompt_textarea, stbale_diffusion_manager)
 
     widget.scratchpad = scratchpad
+    widget.set_should_preview_scratchpad(True)
     scratchpad.owner = widget
+    scratchpad.scratchpad = widget
+    widget.owner = scratchpad
+
+    def strength_change_callback(val):
+        widget.set_strength(val)
+        scratchpad.set_strength(val)
+
+    def steps_change_callback(val):
+        widget.set_steps(val)
+        scratchpad.set_steps(val)
+
+    def guidance_change_callback(val):
+        widget.set_guidance_scale(val)
+        scratchpad.set_guidance_scale(val)
 
     strength_widget, strength_slider, strength_text = create_slider_widget(
         "Strength",
         default=0.75,
-        value_changed_callback=lambda val: widget.set_strength(val))
+        value_changed_callback=strength_change_callback)
 
     steps_widget, steps_slider, steps_text = create_slider_widget(
         "Steps",
@@ -877,14 +907,14 @@ if __name__ == '__main__':
          maximum=200,
          default=50,
          dtype=int,
-         value_changed_callback=lambda val: widget.set_steps(val))
+         value_changed_callback=steps_change_callback)
 
     guidance_widget, guidance_slider, guidance_text = create_slider_widget(
         "Guidance",
          minimum=0,
          maximum=10,
          default=7.5,
-         value_changed_callback=lambda val: widget.set_guidance_scale(val))
+         value_changed_callback=guidance_change_callback)
         
     def inpaint_change_callback(num):
         widget.set_inpaint_method(inpaint_options[num])
@@ -928,12 +958,33 @@ if __name__ == '__main__':
     server_address_widget.setPlaceholderText('server address')
     if runtime_select_widget.currentText() == 'local':
         server_address_widget.setDisabled(True)
+    server_address_widget.setText('http://127.0.0.1:5000')
+
+    box_size_limit_container = QWidget()
+    box_size_limit_label = QLabel('Should limit box size')
+    box_size_limit_checkbox = QCheckBox()
+    box_size_limit_checkbox.setChecked(True)
+    box_size_limit_layout = QHBoxLayout()
+    box_size_limit_layout.addWidget(box_size_limit_label)
+    box_size_limit_layout.addWidget(box_size_limit_checkbox)
+    box_size_limit_container.setLayout(box_size_limit_layout)
+
+    def box_size_limit_callback(state):
+        if state == Qt.Checked:
+            widget.set_should_limit_box_size(True)
+            scratchpad.set_should_limit_box_size(True)
+        else:
+            widget.set_should_limit_box_size(False)
+            scratchpad.set_should_limit_box_size(False)
+
+    box_size_limit_checkbox.stateChanged.connect(box_size_limit_callback)
     
 
     image_groupbox_layout.addWidget(load_image_button)
     image_groupbox_layout.addWidget(increase_size_container)
     image_groupbox_layout.addWidget(paint_widgets_container)
     image_groupbox_layout.addWidget(undo_redo_container)
+    image_groupbox_layout.addWidget(box_size_limit_container)
     params_groupbox_layout.addWidget(prompt_textarea)
     params_groupbox_layout.addWidget(strength_widget)
     params_groupbox_layout.addWidget(steps_widget)
@@ -982,6 +1033,7 @@ if __name__ == '__main__':
         try:
             seed = int(val)
             widget.handle_seed_change(seed)
+            scratchpad.handle_seed_change(seed)
         except:
             pass
     

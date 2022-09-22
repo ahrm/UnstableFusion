@@ -640,33 +640,38 @@ class PaintWidget(QWidget):
         self.update()
 
     def handle_generate_button(self):
-        prompt = self.prompt_textarea.text()
-        width = self.selection_rectangle.width()
-        height = self.selection_rectangle.height()
-        image = self.get_handler().generate(prompt, width=width, height=height, seed=self.seed)
-        self.set_selection_image(image)
-        self.update()
+        try:
+            prompt = self.prompt_textarea.text()
+            width = self.selection_rectangle.width()
+            height = self.selection_rectangle.height()
+            image = self.get_handler().generate(prompt, width=width, height=height, seed=self.seed)
+            self.set_selection_image(image)
+            self.update()
+        except:
+            QErrorMessage(self).showMessage("Generation failed")
 
     def handle_inpaint_button(self):
-        prompt = self.prompt_textarea.text()
-        image_ = self.get_selection_np_image()
-        image = image_[:, :, :3]
-        mask = 255 - image_[:, :, 3]
+        try:
+            prompt = self.prompt_textarea.text()
+            image_ = self.get_selection_np_image()
+            image = image_[:, :, :3]
+            mask = 255 - image_[:, :, 3]
 
-        image, _ = inpaint_functions[self.inpaint_method](image, 255 - mask)
+            image, _ = inpaint_functions[self.inpaint_method](image, 255 - mask)
 
-        inpainted_image = self.get_handler().inpaint(prompt,
-                                                    image,
-                                                    mask,
-                                                    strength=self.strength,
-                                                    steps=self.steps,
-                                                    guidance_scale=self.guidance_scale,
-                                                    seed=self.seed)
-                
+            inpainted_image = self.get_handler().inpaint(prompt,
+                                                        image,
+                                                        mask,
+                                                        strength=self.strength,
+                                                        steps=self.steps,
+                                                        guidance_scale=self.guidance_scale,
+                                                        seed=self.seed)
+                    
 
-        self.set_selection_image(inpainted_image)
-        self.update()
-
+            self.set_selection_image(inpainted_image)
+            self.update()
+        except:
+            QErrorMessage(self).showMessage("Inpainting failed")
 
     def handle_quickload_button(self):
         path = get_most_recent_saved_file()
@@ -725,17 +730,20 @@ class PaintWidget(QWidget):
 
     def handle_reimagine_button(self):
 
-        prompt = self.prompt_textarea.text()
-        image_ = self.get_selection_np_image()
-        image = image_[:, :, :3]
-        reimagined_image = self.get_handler().reimagine(prompt,
-                                                    image,
-                                                    steps=self.steps,
-                                                    guidance_scale=self.guidance_scale,
-                                                    seed=self.seed)
+        try:
+            prompt = self.prompt_textarea.text()
+            image_ = self.get_selection_np_image()
+            image = image_[:, :, :3]
+            reimagined_image = self.get_handler().reimagine(prompt,
+                                                        image,
+                                                        steps=self.steps,
+                                                        guidance_scale=self.guidance_scale,
+                                                        seed=self.seed)
 
-        self.set_selection_image(reimagined_image)
-        self.update()
+            self.set_selection_image(reimagined_image)
+            self.update()
+        except:
+            QErrorMessage(self).showMessage("Reimagine failed")
 
 def create_select_widget(name, options, select_callback=None):
     container_widget = QWidget()

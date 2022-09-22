@@ -7,12 +7,15 @@ from PIL import Image
 import torch
 from torch import autocast
 from diffusers import StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionImg2ImgPipeline
+from diffusionserver import StableDiffusionHandler
 import cv2
 import pathlib
 import time
 import json
 import os
 import datetime
+import requests
+from base64 import encodebytes, decodebytes
 
 SIZE_INCREASE_INCREMENT = 20
 
@@ -157,85 +160,72 @@ def dummy_safety_checker(self):
             return images, [False] * len(images)
 
         return check
-class StableDiffusionHandler:
 
-    def __init__(self):
-        self.text2img = StableDiffusionPipeline.from_pretrained(
-            "CompVis/stable-diffusion-v1-4",
-             revision="fp16",
-             torch_dtype=torch.float16,
-             use_auth_token=True).to("cuda")
+class ServerStableDiffusionHandler:
 
-        # self.text2img.safety_checker = dummy_safety_checker
-
-        self.inpainter = StableDiffusionInpaintPipeline(
-            vae=self.text2img.vae,
-            text_encoder=self.text2img.text_encoder,
-            tokenizer=self.text2img.tokenizer,
-            unet=self.text2img.unet,
-            scheduler=self.text2img.scheduler,
-            safety_checker=self.text2img.safety_checker,
-            feature_extractor=self.text2img.feature_extractor
-        ).to("cuda")
-
-        self.img2img = StableDiffusionImg2ImgPipeline(
-            unet=self.text2img.unet,
-            scheduler=self.text2img.scheduler,
-            vae=self.text2img.vae,
-            text_encoder=self.text2img.text_encoder,
-            tokenizer=self.text2img.tokenizer,
-            safety_checker=self.text2img.safety_checker,
-            feature_extractor=self.text2img.feature_extractor
-        ).to("cuda")
-    
-    def get_generator(self, seed):
-        if seed == -1:
-            return None
-        else:
-            return torch.Generator("cuda").manual_seed(seed)
+    def __init__(self, server_address):
+        self.addr = server_address
+        if self.addr[-1] != '/':
+            self.addr += '/'
     
     def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1):
-        image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
-        mask_ = Image.fromarray(mask.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
+        request_data = {
+            'prompt': prompt,
+            'strength': strength,
+            'steps': steps,
+            'guidance_scale': guidance_scale,
+            'seed': seed,
+            'image': image.tolist(),
+            'mask': mask.tolist()
+        }
+        url = self.addr + 'inpaint'
 
-        with autocast("cuda"):
-            im = self.inpainter(
-                prompt=prompt,
-                init_image=image_,
-                mask_image=mask_,
-                strength=strength,
-                num_inference_steps=steps,
-                guidance_scale=guidance_scale,
-                generator=self.get_generator(seed)
-            )["sample"][0]
-            return im.resize((image.shape[1], image.shape[0]), resample=Image.LANCZOS)
+        resp = requests.post(url, json=request_data)
+
+        resp_data = resp.json()
+        size = resp_data['image_size']
+        mode = resp_data['image_mode']
+        image_data = decodebytes(bytes(resp_data['image_data'], encoding='ascii'))
+
+        return Image.frombytes(mode, size, image_data)
     
     def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1):
-        with autocast("cuda"):
-            im = self.text2img(
-                prompt=prompt,
-                width=512,
-                height=512,
-                generator=self.get_generator(seed)
-            )["sample"][0]
+            request_data = {
+                'prompt': prompt,
+                'strength': strength,
+                'steps': steps,
+                'guidance_scale': guidance_scale,
+                'seed': seed
+            }
+            url = self.addr + 'generate'
 
-            return im.resize((width, height), resample=Image.LANCZOS)
+            resp = requests.post(url, json=request_data)
+
+            resp_data = resp.json()
+            size = resp_data['image_size']
+            mode = resp_data['image_mode']
+            image_data = decodebytes(bytes(resp_data['image_data'], encoding='ascii'))
+
+            return Image.frombytes(mode, size, image_data)
     
     def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1):
+        request_data = {
+            'prompt': prompt,
+            'steps': steps,
+            'guidance_scale': guidance_scale,
+            'seed': seed,
+            'image': image.tolist(),
+        }
+        url = self.addr + 'reimagine'
 
-        image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
-        with autocast("cuda"):
-            results = self.img2img(
-                [prompt],
-                init_image=image_,
-                num_inference_steps=steps,
-                guidance_scale=guidance_scale,
-                generator=self.get_generator(seed)
-            )["sample"]
-            print(len(results))
-            im = results[0]
-            return im.resize((image.shape[1], image.shape[0]), resample=Image.LANCZOS)
+        resp = requests.post(url, json=request_data)
 
+        resp_data = resp.json()
+        size = resp_data['image_size']
+        mode = resp_data['image_mode']
+        image_data = decodebytes(bytes(resp_data['image_data'], encoding='ascii'))
+
+        return Image.frombytes(mode, size, image_data)
 class PaintWidget(QWidget):
 
     def __init__(self, prompt_textarea_, stable_diffusion_handler_, *args, **kwargs):
@@ -607,6 +597,7 @@ class PaintWidget(QWidget):
                                                     steps=self.steps,
                                                     guidance_scale=self.guidance_scale,
                                                     seed=self.seed)
+                
 
         self.set_selection_image(inpainted_image)
         self.update()
@@ -762,6 +753,7 @@ def handle_github_button():
 if __name__ == '__main__':
     stable_diffusion_handler = StableDiffusionHandler()
     # stable_diffusion_handler = DummyStableDiffusionHandler()
+    # stable_diffusion_handler = ServerStableDiffusionHandler('https://yoga-receptor-use-band.trycloudflare.com')
 
 
     app = QApplication(sys.argv)

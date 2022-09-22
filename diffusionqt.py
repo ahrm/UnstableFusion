@@ -4,9 +4,6 @@ from PyQt5.QtCore import *
 import sys
 import numpy as np
 from PIL import Image
-import torch
-from torch import autocast
-from diffusers import StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionImg2ImgPipeline
 from diffusionserver import StableDiffusionHandler
 import cv2
 import pathlib
@@ -15,7 +12,7 @@ import json
 import os
 import datetime
 import requests
-from base64 import encodebytes, decodebytes
+from base64 import decodebytes
 
 SIZE_INCREASE_INCREMENT = 20
 
@@ -226,9 +223,32 @@ class ServerStableDiffusionHandler:
         image_data = decodebytes(bytes(resp_data['image_data'], encoding='ascii'))
 
         return Image.frombytes(mode, size, image_data)
+
+class StableDiffusionManager:
+
+    def __init__(self):
+        self.cached_local_handler = None
+        self.mode_widget = None
+        self.server_address_widget = None
+    
+    def get_local_handler(self):
+        if self.cached_local_handler == None:
+            self.cached_local_handler = StableDiffusionHandler()
+
+        return self.cached_local_handler
+    
+    def get_server_handler(self):
+        addr = self.server_address_widget.text()
+        return ServerStableDiffusionHandler(addr)
+
+    def get_handler(self):
+        if self.mode_widget.currentText() == 'local':
+            return self.get_local_handler()
+        else:
+            return self.get_server_handler()
 class PaintWidget(QWidget):
 
-    def __init__(self, prompt_textarea_, stable_diffusion_handler_, *args, **kwargs):
+    def __init__(self, prompt_textarea_, stable_diffusion_manager_, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.np_image = None
         self.qt_image = None
@@ -296,7 +316,10 @@ class PaintWidget(QWidget):
         self.quickload_shortcut.activated.connect(self.update_and(self.handle_quickload_button))
         
         self.prompt_textarea = prompt_textarea_
-        self.stable_diffusion_handler = stable_diffusion_handler_
+        self.stable_diffusion_manager = stable_diffusion_manager_
+
+    def get_handler(self):
+        return self.stable_diffusion_manager.get_handler()
 
     def update_and(self, f):
         def update_and_f(*args, **kwargs):
@@ -578,7 +601,7 @@ class PaintWidget(QWidget):
         prompt = self.prompt_textarea.text()
         width = self.selection_rectangle.width()
         height = self.selection_rectangle.height()
-        image = self.stable_diffusion_handler.generate(prompt, width=width, height=height, seed=self.seed)
+        image = self.get_handler().generate(prompt, width=width, height=height, seed=self.seed)
         self.set_selection_image(image)
         self.update()
 
@@ -590,7 +613,7 @@ class PaintWidget(QWidget):
 
         image, _ = inpaint_functions[self.inpaint_method](image, 255 - mask)
 
-        inpainted_image = self.stable_diffusion_handler.inpaint(prompt,
+        inpainted_image = self.get_handler().inpaint(prompt,
                                                     image,
                                                     mask,
                                                     strength=self.strength,
@@ -663,7 +686,7 @@ class PaintWidget(QWidget):
         prompt = self.prompt_textarea.text()
         image_ = self.get_selection_np_image()
         image = image_[:, :, :3]
-        reimagined_image = self.stable_diffusion_handler.reimagine(prompt,
+        reimagined_image = self.get_handler().reimagine(prompt,
                                                     image,
                                                     steps=self.steps,
                                                     guidance_scale=self.guidance_scale,
@@ -751,9 +774,10 @@ def handle_github_button():
     QDesktopServices.openUrl(QUrl('https://github.com/ahrm'))
 
 if __name__ == '__main__':
-    stable_diffusion_handler = StableDiffusionHandler()
+    # stable_diffusion_handler = StableDiffusionHandler()
     # stable_diffusion_handler = DummyStableDiffusionHandler()
     # stable_diffusion_handler = ServerStableDiffusionHandler('https://yoga-receptor-use-band.trycloudflare.com')
+    stbale_diffusion_manager = StableDiffusionManager()
 
 
     app = QApplication(sys.argv)
@@ -836,8 +860,8 @@ if __name__ == '__main__':
     scratchpad_layout.addWidget(paste_scratchpad_button)
     scratchpad_container.setLayout(scratchpad_layout)
     export_button = QPushButton('Export')
-    widget = PaintWidget(prompt_textarea, stable_diffusion_handler)
-    scratchpad = PaintWidget(prompt_textarea, stable_diffusion_handler)
+    widget = PaintWidget(prompt_textarea, stbale_diffusion_manager)
+    scratchpad = PaintWidget(prompt_textarea, stbale_diffusion_manager)
 
     widget.scratchpad = scratchpad
     scratchpad.owner = widget
@@ -888,6 +912,24 @@ if __name__ == '__main__':
     support_layout.addWidget(twitter_button)
     support_container.setLayout(support_layout)
 
+    def runtime_change_callback(num):
+        if runtime_options[num] == 'local':
+            server_address_widget.setDisabled(True)
+        else:
+            server_address_widget.setEnabled(True)
+
+    runtime_options = ['local', 'server']
+    runtime_select_container, runtime_select_widget = create_select_widget('Runtime', runtime_options, select_callback=runtime_change_callback)
+    server_address_widget = QLineEdit()
+
+    stbale_diffusion_manager.mode_widget = runtime_select_widget
+    stbale_diffusion_manager.server_address_widget = server_address_widget
+
+    server_address_widget.setPlaceholderText('server address')
+    if runtime_select_widget.currentText() == 'local':
+        server_address_widget.setDisabled(True)
+    
+
     image_groupbox_layout.addWidget(load_image_button)
     image_groupbox_layout.addWidget(increase_size_container)
     image_groupbox_layout.addWidget(paint_widgets_container)
@@ -897,6 +939,8 @@ if __name__ == '__main__':
     params_groupbox_layout.addWidget(steps_widget)
     params_groupbox_layout.addWidget(guidance_widget)
     params_groupbox_layout.addWidget(seed_container)
+    run_groupbox_layout.addWidget(runtime_select_container)
+    run_groupbox_layout.addWidget(server_address_widget)
     run_groupbox_layout.addWidget(generate_button)
     run_groupbox_layout.addWidget(inpaint_container)
     run_groupbox_layout.addWidget(reimagine_button)

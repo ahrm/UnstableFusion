@@ -276,6 +276,7 @@ class PaintWidget(QWidget):
         self.owner = None
 
         self.should_limit_box_size = True
+        self.shoulds_swap_buttons = False
 
 
         shortcuts = get_shortcut_dict()
@@ -328,9 +329,12 @@ class PaintWidget(QWidget):
 
     def set_should_preview_scratchpad(self, val):
         self.should_preview_scratchpad = val
-    
+
     def toggle_should_preview_scratchpad(self):
         self.set_should_preview_scratchpad(not self.should_preview_scratchpad)
+
+    def set_should_swap_buttons(self, val):
+        self.shoulds_swap_buttons = val
 
     def get_handler(self):
         return self.stable_diffusion_manager.get_handler()
@@ -399,12 +403,15 @@ class PaintWidget(QWidget):
         self.qt_image = qimage_from_array(self.np_image)
 
     def mouseMoveEvent(self, e):
+        right_button = self.get_mouse_button(Qt.RightButton)
+        mid_button = self.get_mouse_button(Qt.MidButton)
+
         if self.is_dragging:
             self.selection_rectangle.moveCenter(e.pos())
 
-            if e.buttons() & Qt.RightButton:
+            if e.buttons() & right_button:
                 self.erase_selection(False)
-            if e.buttons() & Qt.MidButton:
+            if e.buttons() & mid_button:
                 self.paint_selection(False)
 
             self.update()
@@ -541,19 +548,31 @@ class PaintWidget(QWidget):
         H = SIZE_INCREASE_INCREMENT // 2
         self.set_np_image(self.np_image[H:-H, H:-H, :])
 
+    def get_mouse_button(self, button):
+        if not self.shoulds_swap_buttons:
+            return button
+        else:
+            if button == Qt.MidButton:
+                return Qt.LeftButton
+            if button == Qt.LeftButton:
+                return Qt.MidButton
+            return button
+
     def mousePressEvent(self, e):
         # return super().mousePressEvent(e)
         top_left = QPoint(e.pos().x() - self.selection_rectangle_size[0] / 2, e.pos().y() - self.selection_rectangle_size[1] / 2)
         self.selection_rectangle = QRect(top_left, QSize(*self.selection_rectangle_size))
 
-        if e.button() == Qt.LeftButton:
+        button = self.get_mouse_button(e.button())
+
+        if button == Qt.LeftButton:
             self.is_dragging = True
 
-        if e.button() == Qt.RightButton:
+        if button == Qt.RightButton:
             self.erase_selection()
             self.is_dragging = True
 
-        if e.button() == Qt.MidButton:
+        if button == Qt.MidButton:
             self.paint_selection()
             self.is_dragging = True
             # self.selection_rectangle_size = (256, 256)
@@ -965,8 +984,14 @@ if __name__ == '__main__':
     box_size_limit_checkbox = QCheckBox()
     box_size_limit_checkbox.setChecked(True)
     box_size_limit_layout = QHBoxLayout()
+    swap_buttons_label = QLabel('Paint using left click')
+    swap_buttons_checkbox = QCheckBox()
+    swap_buttons_checkbox.setChecked(False)
     box_size_limit_layout.addWidget(box_size_limit_label)
     box_size_limit_layout.addWidget(box_size_limit_checkbox)
+    box_size_limit_layout.addWidget(swap_buttons_label)
+    box_size_limit_layout.addWidget(swap_buttons_checkbox)
+
     box_size_limit_container.setLayout(box_size_limit_layout)
 
     def box_size_limit_callback(state):
@@ -977,7 +1002,16 @@ if __name__ == '__main__':
             widget.set_should_limit_box_size(False)
             scratchpad.set_should_limit_box_size(False)
 
+    def swap_buttons_callback(state):
+        if state == Qt.Checked:
+            widget.set_should_swap_buttons(True)
+            scratchpad.set_should_swap_buttons(True)
+        else:
+            widget.set_should_swap_buttons(False)
+            scratchpad.set_should_swap_buttons(False)
+
     box_size_limit_checkbox.stateChanged.connect(box_size_limit_callback)
+    swap_buttons_checkbox.stateChanged.connect(swap_buttons_callback)
     
 
     image_groupbox_layout.addWidget(load_image_button)

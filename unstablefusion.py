@@ -1067,6 +1067,8 @@ if __name__ == '__main__':
     disable_safety_button = QPushButton('Disable Safety Checker')
     
 
+    scroll_area = QScrollArea()
+
     image_groupbox_layout.addWidget(load_image_button)
     image_groupbox_layout.addWidget(increase_size_container)
     image_groupbox_layout.addWidget(paint_widgets_container)
@@ -1097,6 +1099,8 @@ if __name__ == '__main__':
     # tools_layout.addWidget(disable_safety_button)
     tools_layout.addWidget(support_container)
     tools_widget.setLayout(tools_layout)
+
+    scroll_area.setWidget(tools_widget)
 
     def handle_disable_safety():
         stbale_diffusion_manager.disable_safety()
@@ -1140,5 +1144,7 @@ if __name__ == '__main__':
     scratchpad.set_np_image(testtexture)
     widget.resize_to_image()
     widget.show()
-    tools_widget.show()
+    # tools_widget.show()
+    scroll_area.resize(tools_widget.sizeHint())
+    scroll_area.show()
     app.exec()

@@ -5,7 +5,7 @@ https://user-images.githubusercontent.com/6392321/191858568-0550f52d-e89c-4b37-a
 
 ## How to run locally?
 1. Install the dependencies (for example using `pip`). The dependencies include :
-* `PyQt5`, `numpy`, `pytorch`, `Pillow`, `opencv-python`, `requests`, `flask`, `diffusers`, `transformers`
+* `PyQt5`, `numpy`, `pytorch`, `Pillow`, `opencv-python`, `requests`, `flask`, `diffusers`, `transformers`, `protobuf`
 
 2. If you have never run stable diffusion, run it once and enter your token so that it is cached
 

@@ -14,6 +14,7 @@ import os
 import datetime
 import requests
 from base64 import decodebytes
+import traceback
 
 SIZE_INCREASE_INCREMENT = 20
 
@@ -619,8 +620,8 @@ class PaintWidget(QWidget):
                 try:
                     image = np.array(Image.fromarray(self.scratchpad.get_selection_np_image()).resize((self.selection_rectangle.width(), self.selection_rectangle.height()), Image.LANCZOS))
                     painter.drawImage(self.selection_rectangle, qimage_from_array(image))
-                except Exception as e:
-                    print(str(e))
+                except Exception:
+                    print(traceback.format_exc())
 
 
 
@@ -661,9 +662,8 @@ class PaintWidget(QWidget):
             image = self.get_handler().generate(prompt, width=width, height=height, seed=self.seed)
             self.set_selection_image(image)
             self.update()
-        except Exception as e:
-            print(e)
-            QErrorMessage(self).showMessage("Generation failed")
+        except Exception:
+            print(traceback.format_exc())
 
     def handle_inpaint_button(self):
         try:
@@ -686,6 +686,7 @@ class PaintWidget(QWidget):
             self.set_selection_image(inpainted_image)
             self.update()
         except:
+            print(traceback.format_exc())
             QErrorMessage(self).showMessage("Inpainting failed")
 
     def handle_quickload_button(self):
@@ -758,6 +759,7 @@ class PaintWidget(QWidget):
             self.set_selection_image(reimagined_image)
             self.update()
         except:
+            print(traceback.format_exc())
             QErrorMessage(self).showMessage("Reimagine failed")
 
 def create_select_widget(name, options, select_callback=None):
@@ -796,8 +798,8 @@ def create_slider_widget(name, minimum=0, maximum=1, default=0.5, dtype=float, v
             strength_slider.setValue(int(value))
             if value_changed_callback:
                 value_changed_callback(dtype(value_text.text()))
-        except Exception as e:
-            print(str(e))
+        except Exception:
+            print(traceback.format_exc())
 
     strength_slider.valueChanged.connect(slider_changed)
     value_text.textChanged.connect(value_changed)
@@ -1131,8 +1133,8 @@ if __name__ == '__main__':
             seed = int(val)
             widget.handle_seed_change(seed)
             scratchpad.handle_seed_change(seed)
-        except Exception as e:
-            print(str(e))
+        except Exception:
+            print(traceback.format_exc())
     
     seed_text.textChanged.connect(seed_change_function)
     seed_reset_button.clicked.connect(lambda : seed_text.setText('-1'))

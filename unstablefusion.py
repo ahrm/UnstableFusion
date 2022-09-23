@@ -779,7 +779,7 @@ def create_slider_widget(name, minimum=0, maximum=1, default=0.5, dtype=float, v
     def value_changed():
         try:
             value = dtype(float(value_text.text()) * 100)
-            strength_slider.setValue(value)
+            strength_slider.setValue(int(value))
             if value_changed_callback:
                 value_changed_callback(dtype(value_text.text()))
         except Exception as e:
@@ -789,7 +789,7 @@ def create_slider_widget(name, minimum=0, maximum=1, default=0.5, dtype=float, v
     value_text.textChanged.connect(value_changed)
 
     def reset():
-        strength_slider.setValue(default * 100)
+        strength_slider.setValue(int(default * 100))
         value_text.setText(str(default))
 
     reset_button.clicked.connect(reset)
@@ -803,7 +803,7 @@ def create_slider_widget(name, minimum=0, maximum=1, default=0.5, dtype=float, v
 
     strength_slider.setMinimum(minimum * 100)
     strength_slider.setMaximum(maximum * 100)
-    strength_slider.setValue(default * 100)
+    strength_slider.setValue(int(default * 100))
 
     strength_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
     value_text.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)

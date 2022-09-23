@@ -469,7 +469,7 @@ class PaintWidget(QWidget):
         window_height = self.height()
         offset_x = (window_width - w) / 2
         offset_y = (window_height - h) / 2
-        return QPoint(pos.x() - offset_x, pos.y() - offset_y)
+        return QPoint(int(pos.x() - offset_x), int(pos.y() - offset_y))
     
     def map_widget_to_image_rect(self, widget_rect):
         image_rect = QRect()
@@ -562,7 +562,7 @@ class PaintWidget(QWidget):
 
     def mousePressEvent(self, e):
         # return super().mousePressEvent(e)
-        top_left = QPoint(e.pos().x() - self.selection_rectangle_size[0] / 2, e.pos().y() - self.selection_rectangle_size[1] / 2)
+        top_left = QPoint(int(e.pos().x() - self.selection_rectangle_size[0] / 2), int(e.pos().y() - self.selection_rectangle_size[1] / 2))
         self.selection_rectangle = QRect(top_left, QSize(*self.selection_rectangle_size))
 
         button = self.get_mouse_button(e.button())

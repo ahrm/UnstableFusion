@@ -7,6 +7,11 @@ https://user-images.githubusercontent.com/6392321/191858568-0550f52d-e89c-4b37-a
 1. Install the dependencies (for example using `pip`). The dependencies include :
 * `PyQt5`, `numpy`, `pytorch`, `Pillow`, `opencv-python`, `requests`, `flask`, `diffusers`, `transformers`, `protobuf`
 
+Note that if you want to run StableDiffusion locally, you have to install pytorch with cuda enabled like this:
+```
+pip install torch==1.12.1+cu113 -f https://download.pytorch.org/whl/torch_stable.html
+```
+
 2. Clone this repository and run `python unstablefusion.py`
 
 ## How to run using colab servers?

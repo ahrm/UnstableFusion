@@ -609,8 +609,8 @@ class PaintWidget(QWidget):
                 try:
                     image = np.array(Image.fromarray(self.scratchpad.get_selection_np_image()).resize((self.selection_rectangle.width(), self.selection_rectangle.height()), Image.LANCZOS))
                     painter.drawImage(self.selection_rectangle, qimage_from_array(image))
-                except:
-                    pass
+                except Exception as e:
+                    print(str(e))
 
 
 
@@ -647,7 +647,8 @@ class PaintWidget(QWidget):
             image = self.get_handler().generate(prompt, width=width, height=height, seed=self.seed)
             self.set_selection_image(image)
             self.update()
-        except:
+        except Exception as e:
+            print(e)
             QErrorMessage(self).showMessage("Generation failed")
 
     def handle_inpaint_button(self):
@@ -781,8 +782,8 @@ def create_slider_widget(name, minimum=0, maximum=1, default=0.5, dtype=float, v
             strength_slider.setValue(value)
             if value_changed_callback:
                 value_changed_callback(dtype(value_text.text()))
-        except:
-            pass
+        except Exception as e:
+            print(str(e))
 
     strength_slider.valueChanged.connect(slider_changed)
     value_text.textChanged.connect(value_changed)
@@ -1086,8 +1087,8 @@ if __name__ == '__main__':
             seed = int(val)
             widget.handle_seed_change(seed)
             scratchpad.handle_seed_change(seed)
-        except:
-            pass
+        except Exception as e:
+            print(str(e))
     
     seed_text.textChanged.connect(seed_change_function)
     seed_reset_button.clicked.connect(lambda : seed_text.setText('-1'))

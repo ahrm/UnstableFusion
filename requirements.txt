@@ -7,3 +7,4 @@ PyQt5>=5.15.7
 requests>=2.28.0
 torch>=1.12.1
 opencv_python>=4.2.0.32
+transformers>=4.22.1

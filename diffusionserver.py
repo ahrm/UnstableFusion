@@ -19,12 +19,12 @@ if IN_COLAB:
 
 
 class StableDiffusionHandler:
-    def __init__(self):
+    def __init__(self, token=True):
         self.text2img = StableDiffusionPipeline.from_pretrained(
         "CompVis/stable-diffusion-v1-4",
             revision="fp16",
             torch_dtype=torch.float16,
-            use_auth_token=True).to("cuda")
+            use_auth_token=token).to("cuda")
 
         # self.text2img.safety_checker = dummy_safety_checker
 

@@ -229,6 +229,7 @@ class StableDiffusionManager:
     def __init__(self):
         self.cached_local_handler = None
         self.mode_widget = None
+        self.huggingface_token_widget = None
         self.server_address_widget = None
     
     def disable_safety(self):
@@ -237,19 +238,25 @@ class StableDiffusionManager:
             self.cached_local_handler.text2img.safety_checker = dummy_safety_checker
             self.cached_local_handler.inpainter.safety_checker = dummy_safety_checker
 
-    def get_local_handler(self):
+    def get_local_handler(self, token=True):
         if self.cached_local_handler == None:
-            self.cached_local_handler = StableDiffusionHandler()
+            self.cached_local_handler = StableDiffusionHandler(token)
 
         return self.cached_local_handler
     
     def get_server_handler(self):
         addr = self.server_address_widget.text()
         return ServerStableDiffusionHandler(addr)
+    
+    def get_huggingface_token(self):
+        if len(self.huggingface_token_widget.text()) == 0:
+            return True
+        else:
+            return self.huggingface_token_widget.text()
 
     def get_handler(self):
         if self.mode_widget.currentText() == 'local':
-            return self.get_local_handler()
+            return self.get_local_handler(self.get_huggingface_token())
         else:
             return self.get_server_handler()
 class PaintWidget(QWidget):
@@ -827,6 +834,9 @@ def handle_twitter_button():
 def handle_github_button():
     QDesktopServices.openUrl(QUrl('https://github.com/ahrm/UnstableFusion'))
 
+def handle_huggingface_button():
+    QDesktopServices.openUrl(QUrl('https://huggingface.co/settings/tokens'))
+
 if __name__ == '__main__':
     stbale_diffusion_manager = StableDiffusionManager()
 
@@ -848,6 +858,18 @@ if __name__ == '__main__':
     params_groupbox_layout = QVBoxLayout()
     run_groupbox_layout = QVBoxLayout()
     save_groupbox_layout = QVBoxLayout()
+
+    huggingface_token_container = QWidget()
+    huggingface_token_layout = QHBoxLayout()
+    huggingface_token_label = QLabel('Huggingface Token')
+    huggingface_token_text_field = QLineEdit()
+    huggingface_token_open_button = QPushButton('Open Token Page')
+    huggingface_token_layout.addWidget(huggingface_token_label)
+    huggingface_token_layout.addWidget(huggingface_token_text_field)
+    huggingface_token_layout.addWidget(huggingface_token_open_button)
+    huggingface_token_container.setLayout(huggingface_token_layout)
+
+    huggingface_token_open_button.clicked.connect(handle_huggingface_button)
 
     tools_widget = QWidget()
     tools_layout = QVBoxLayout()
@@ -994,6 +1016,7 @@ if __name__ == '__main__':
     server_address_widget = QLineEdit()
 
     stbale_diffusion_manager.mode_widget = runtime_select_widget
+    stbale_diffusion_manager.huggingface_token_widget = huggingface_token_text_field
     stbale_diffusion_manager.server_address_widget = server_address_widget
 
     server_address_widget.setPlaceholderText('server address')
@@ -1059,6 +1082,7 @@ if __name__ == '__main__':
     params_groupbox.setLayout(params_groupbox_layout)
     save_groupbox.setLayout(save_groupbox_layout)
     run_groupbox.setLayout(run_groupbox_layout)
+    tools_layout.addWidget(huggingface_token_container)
     tools_layout.addWidget(image_groupbox)
     tools_layout.addWidget(params_groupbox)
     tools_layout.addWidget(run_groupbox)

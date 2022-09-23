@@ -547,6 +547,13 @@ class PaintWidget(QWidget):
         image_rect = self.map_widget_to_image_rect(self.selection_rectangle)
         image_rect, source_rect = self.crop_image_rect(image_rect)
         result = np.zeros((self.selection_rectangle.height(), self.selection_rectangle.width(), 4), dtype=np.uint8)
+
+        if image_rect.width() != source_rect.width():
+            source_rect.setRight(source_rect.right()-1)
+
+        if image_rect.height() != source_rect.height():
+            source_rect.setBottom(source_rect.bottom()-1)
+
         result[source_rect.top():source_rect.bottom(), source_rect.left():source_rect.right(), :] = \
             self.np_image[image_rect.top():image_rect.bottom(), image_rect.left():image_rect.right(), :]
         return result

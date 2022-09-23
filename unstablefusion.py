@@ -869,6 +869,8 @@ if __name__ == '__main__':
     huggingface_token_layout.addWidget(huggingface_token_open_button)
     huggingface_token_container.setLayout(huggingface_token_layout)
 
+    huggingface_token_text_field.setEchoMode(QLineEdit.Password)
+
     huggingface_token_open_button.clicked.connect(handle_huggingface_button)
 
     tools_widget = QWidget()

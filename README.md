@@ -5,28 +5,27 @@ https://user-images.githubusercontent.com/6392321/191858568-0550f52d-e89c-4b37-a
 
 ## How to run locally?
 1. Install the dependencies (for example using `pip`). The dependencies include :
-* `PyQt5`
-* `numpy`
-* `pytorch`
-* `Pillow`
-* `opencv-python`
-* `requests`
-* `flask`
-* `diffusers`
-* `transformers`
+* `PyQt5`, `numpy`, `pytorch`, `Pillow`, `opencv-python`, `requests`, `flask`, `diffusers`, `transformers`
+
 2. If you have never run stable diffusion, run it once and enter your token so that it is cached
+
 3. Clone this repository and run `python unstablefusion.py`
 
 ## How to run using colab servers?
 
 1. Install the dependencies (see the previous section)
+
 2. Open [this notebook](https://colab.research.google.com/github/ahrm/UnstableFusion/blob/main/UnstableFusionServer.ipynb) and run it (you need to enter your huggingface token when asked).
+
 3. When you run the last cell, you will be given a url like this:
-26
+
 ![colab_output - Copy](https://user-images.githubusercontent.com/6392321/191857962-0601fa88-7f03-46cf-98a0-c38cb3fd25b9.png)
 copy this URL.
+
 4. Run `python unstablefusion.py`
+
 5. In the runtime section, select server and enter the address you copied in the server field. Like this:
+
 ![using_server - Copy](https://user-images.githubusercontent.com/6392321/191858215-9db78f1a-50f8-4394-8bd4-fc14d981561b.png)
 
 ## How to use?

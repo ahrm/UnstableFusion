@@ -1,3 +1,4 @@
+from multiprocessing import dummy
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -153,11 +154,7 @@ class DummyStableDiffusionHandler:
     def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1):
         return image
 
-def dummy_safety_checker(self):
-        def check(images, *args, **kwargs):
-            return images, [False] * len(images)
-
-        return check
+dummy_safety_checker = lambda images, **kwargs: (images, [False] * len(images))
 
 class ServerStableDiffusionHandler:
 
@@ -234,6 +231,12 @@ class StableDiffusionManager:
         self.mode_widget = None
         self.server_address_widget = None
     
+    def disable_safety(self):
+        if self.cached_local_handler != None:
+            self.cached_local_handler.img2img.safety_checker = dummy_safety_checker
+            self.cached_local_handler.text2img.safety_checker = dummy_safety_checker
+            self.cached_local_handler.inpainter.safety_checker = dummy_safety_checker
+
     def get_local_handler(self):
         if self.cached_local_handler == None:
             self.cached_local_handler = StableDiffusionHandler()
@@ -1031,6 +1034,8 @@ if __name__ == '__main__':
 
     box_size_limit_checkbox.stateChanged.connect(box_size_limit_callback)
     swap_buttons_checkbox.stateChanged.connect(swap_buttons_callback)
+
+    disable_safety_button = QPushButton('Disable Safety Checker')
     
 
     image_groupbox_layout.addWidget(load_image_button)
@@ -1059,8 +1064,12 @@ if __name__ == '__main__':
     tools_layout.addWidget(run_groupbox)
     tools_layout.addWidget(save_groupbox)
     tools_layout.addWidget(scratchpad_container)
+    tools_layout.addWidget(disable_safety_button)
     tools_layout.addWidget(support_container)
     tools_widget.setLayout(tools_layout)
+
+    def handle_disable_safety():
+        stbale_diffusion_manager.disable_safety()
 
     load_image_button.clicked.connect(lambda : widget.handle_load_image_button())
     erase_button.clicked.connect(lambda : widget.handle_erase_button())
@@ -1081,6 +1090,7 @@ if __name__ == '__main__':
     coffee_button.clicked.connect(lambda : handle_coffee_button())
     twitter_button.clicked.connect(lambda : handle_twitter_button())
     github_button.clicked.connect(lambda : handle_github_button())
+    disable_safety_button.clicked.connect(lambda : handle_disable_safety())
 
     def seed_change_function(val):
         try:

@@ -1,6 +1,5 @@
 diffusers>=0.3.0
 Flask>=1.1.2
-flask_cloudflared>=0.0.10
 numpy>=1.21.6
 Pillow>=9.2.0
 protobuf>=4.21.6

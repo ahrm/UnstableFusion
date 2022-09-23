@@ -431,7 +431,7 @@ class PaintWidget(QWidget):
         if self.selection_rectangle != None:
             center = self.selection_rectangle.center()
             self.selection_rectangle = QRect(int(center.x() - self.selection_rectangle_size[0] / 2), int(center.y(
-            ) - self.selection_rectangle_size[1] / 2), *self.selection_rectangle_size)
+            ) - self.selection_rectangle_size[1] / 2), int(self.selection_rectangle_size[0]), int(self.selection_rectangle_size[1]))
 
     def wheelEvent(self, e):
         delta = 1
@@ -566,7 +566,7 @@ class PaintWidget(QWidget):
     def mousePressEvent(self, e):
         # return super().mousePressEvent(e)
         top_left = QPoint(int(e.pos().x() - self.selection_rectangle_size[0] / 2), int(e.pos().y() - self.selection_rectangle_size[1] / 2))
-        self.selection_rectangle = QRect(top_left, QSize(*self.selection_rectangle_size))
+        self.selection_rectangle = QRect(top_left, QSize(int(self.selection_rectangle_size[0]), int(self.selection_rectangle_size[1])))
 
         button = self.get_mouse_button(e.button())
 

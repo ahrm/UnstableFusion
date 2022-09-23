@@ -154,7 +154,6 @@ class DummyStableDiffusionHandler:
     def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1):
         return image
 
-dummy_safety_checker = lambda images, **kwargs: (images, [False] * len(images))
 
 class ServerStableDiffusionHandler:
 
@@ -1095,7 +1094,7 @@ if __name__ == '__main__':
     tools_layout.addWidget(run_groupbox)
     tools_layout.addWidget(save_groupbox)
     tools_layout.addWidget(scratchpad_container)
-    tools_layout.addWidget(disable_safety_button)
+    # tools_layout.addWidget(disable_safety_button)
     tools_layout.addWidget(support_container)
     tools_widget.setLayout(tools_layout)
 

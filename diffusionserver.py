@@ -17,6 +17,7 @@ except:
 if IN_COLAB:
     from flask_cloudflared import run_with_cloudflared
 
+dummy_safety_checker = lambda images, **kwargs: (images, [False] * len(images))
 
 class StableDiffusionHandler:
     def __init__(self, token=True):
@@ -47,6 +48,10 @@ class StableDiffusionHandler:
             safety_checker=self.text2img.safety_checker,
             feature_extractor=self.text2img.feature_extractor
         ).to("cuda")
+
+        self.inpainter.safety_checker = dummy_safety_checker
+        self.img2img.safety_checker = dummy_safety_checker
+        self.text2img.safety_checker = dummy_safety_checker
     
     def get_generator(self, seed):
         if seed == -1:

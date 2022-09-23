@@ -543,6 +543,7 @@ class PaintWidget(QWidget):
 
 
     def get_selection_np_image(self):
+
         image_rect = self.map_widget_to_image_rect(self.selection_rectangle)
         image_rect, source_rect = self.crop_image_rect(image_rect)
         result = np.zeros((self.selection_rectangle.height(), self.selection_rectangle.width(), 4), dtype=np.uint8)
@@ -651,6 +652,10 @@ class PaintWidget(QWidget):
 
     def handle_generate_button(self):
         try:
+            if self.selection_rectangle == None:
+                QErrorMessage(self).showMessage("Select the target square first")
+                return
+
             prompt = self.prompt_textarea.text()
             width = self.selection_rectangle.width()
             height = self.selection_rectangle.height()

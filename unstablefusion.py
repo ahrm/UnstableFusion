@@ -427,8 +427,8 @@ class PaintWidget(QWidget):
     def update_selection_rectangle(self):
         if self.selection_rectangle != None:
             center = self.selection_rectangle.center()
-            self.selection_rectangle = QRect(center.x() - self.selection_rectangle_size[0] / 2, center.y(
-            ) - self.selection_rectangle_size[1] / 2, *self.selection_rectangle_size)
+            self.selection_rectangle = QRect(int(center.x() - self.selection_rectangle_size[0] / 2), int(center.y(
+            ) - self.selection_rectangle_size[1] / 2), *self.selection_rectangle_size)
 
     def wheelEvent(self, e):
         delta = 1
@@ -595,7 +595,7 @@ class PaintWidget(QWidget):
             window_height = self.height()
             offset_x = (window_width - w) / 2
             offset_y = (window_height - h) / 2
-            self.image_rect = QRect(offset_x, offset_y, w, h)
+            self.image_rect = QRect(int(offset_x), int(offset_y), int(w), int(h))
             prev_brush = painter.brush()
             painter.fillRect(self.image_rect, checkerboard_brush)
             painter.setBrush(prev_brush)

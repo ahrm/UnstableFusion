@@ -16,6 +16,7 @@ import requests
 from base64 import decodebytes
 import traceback
 import random
+from dataclasses import dataclass
 
 SIZE_INCREASE_INCREMENT = 20
 
@@ -265,6 +266,10 @@ class StableDiffusionManager:
         else:
             return self.get_server_handler()
 
+@dataclass
+class SavedMaskState:
+    mask: np.ndarray
+    box: QRect
 class PaintWidget(QWidget):
 
     def __init__(self, prompt_textarea_, stable_diffusion_manager_, *args, **kwargs):
@@ -296,6 +301,7 @@ class PaintWidget(QWidget):
         self.should_limit_box_size = True
         self.shoulds_swap_buttons = False
 
+        self.saved_mask_state = None
 
         shortcuts = get_shortcut_dict()
         self.paste_shortcut = QShortcut(QKeySequence(shortcuts['paste_from_scratchpad']), self)
@@ -360,6 +366,14 @@ class PaintWidget(QWidget):
 
     def get_handler(self):
         return self.stable_diffusion_manager.get_handler()
+    
+    def reset_saved_mask(self):
+        self.saved_mask_state = None
+
+    def save_mask(self):
+        mask = self.get_selection_np_image()[:, :, 3]
+        box = self.selection_rectangle
+        self.saved_mask_state = SavedMaskState(mask, box)
 
     def update_and(self, f):
         def update_and_f(*args, **kwargs):
@@ -628,6 +642,11 @@ class PaintWidget(QWidget):
             painter.fillRect(self.image_rect, checkerboard_brush)
             painter.setBrush(prev_brush)
             painter.drawImage(self.image_rect, self.qt_image)
+
+        if self.saved_mask_state:
+            painter.setPen(QPen(Qt.blue,  1, Qt.DashLine))
+            painter.drawRect(self.saved_mask_state.box)
+
         if self.selection_rectangle != None:
             # painter.setBrush(redbrush)
             painter.setPen(QPen(Qt.red,  1, Qt.SolidLine))
@@ -712,11 +731,17 @@ class PaintWidget(QWidget):
     def handle_inpaint_button(self):
         try:
             prompt = self.prompt_textarea.text()
+            if self.saved_mask_state != None:
+                self.selection_rectangle = self.saved_mask_state.box
+
             image_ = self.get_selection_np_image()
             image = image_[:, :, :3]
-            mask = 255 - image_[:, :, 3]
+            if self.saved_mask_state == None:
+                mask = 255 - image_[:, :, 3]
+                image, _ = inpaint_functions[self.inpaint_method](image, 255 - mask)
+            else:
+                mask = 255 - self.saved_mask_state.mask
 
-            image, _ = inpaint_functions[self.inpaint_method](image, 255 - mask)
 
             inpainted_image = self.get_handler().inpaint(prompt,
                                                          image,
@@ -1138,6 +1163,27 @@ if __name__ == '__main__':
     fill_button = QPushButton('Autofill')
     fill_button.clicked.connect(handle_autofill)
 
+    def handle_save_mask_button():
+        widget.save_mask()
+        widget.update()
+
+    def handle_forget_mask_button():
+        widget.reset_saved_mask()
+        widget.update()
+
+    mask_control_container = QWidget()
+    mask_control_layout = QHBoxLayout()
+
+    mask_container_label = QLabel('Advanced Inpainting Mask')
+    save_mask_button = QPushButton('Save Mask')
+    save_mask_button.clicked.connect(handle_save_mask_button)
+    forget_mask_button = QPushButton('Forget Mask')
+    forget_mask_button.clicked.connect(handle_forget_mask_button)
+    mask_control_layout.addWidget(mask_container_label)
+    mask_control_layout.addWidget(save_mask_button)
+    mask_control_layout.addWidget(forget_mask_button)
+    mask_control_container.setLayout(mask_control_layout)
+
     scroll_area = QScrollArea()
 
     image_groupbox_layout.addWidget(load_image_button)
@@ -1155,6 +1201,7 @@ if __name__ == '__main__':
     run_groupbox_layout.addWidget(server_address_widget)
     run_groupbox_layout.addWidget(generate_button)
     run_groupbox_layout.addWidget(inpaint_container)
+    run_groupbox_layout.addWidget(mask_control_container)
     run_groupbox_layout.addWidget(reimagine_button)
     save_groupbox_layout.addWidget(save_container)
     save_groupbox_layout.addWidget(export_button)

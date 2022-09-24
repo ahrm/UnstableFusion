@@ -16,7 +16,6 @@ import requests
 from base64 import decodebytes
 import traceback
 import random
-from matplotlib import pyplot as plt
 
 SIZE_INCREASE_INCREMENT = 20
 
@@ -265,6 +264,7 @@ class StableDiffusionManager:
             return self.get_local_handler(self.get_huggingface_token())
         else:
             return self.get_server_handler()
+
 class PaintWidget(QWidget):
 
     def __init__(self, prompt_textarea_, stable_diffusion_manager_, *args, **kwargs):

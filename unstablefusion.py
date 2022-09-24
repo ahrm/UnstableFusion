@@ -210,12 +210,13 @@ class ServerStableDiffusionHandler:
 
             return Image.frombytes(mode, size, image_data)
     
-    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1):
+    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=7.5):
         request_data = {
             'prompt': prompt,
             'steps': steps,
             'guidance_scale': guidance_scale,
             'seed': seed,
+            'strength': strength,
             'image': image.tolist(),
         }
         url = self.addr + 'reimagine'

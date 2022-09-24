@@ -35,6 +35,18 @@ def get_quicksave_path():
     folder_path.mkdir(exist_ok=True, parents=True)
     return folder_path
 
+def get_modifiers_path():
+    parent_path = pathlib.Path(__file__).parents[0]
+    return str(parent_path / 'modifiers.txt')
+
+def save_modifiers(mods):
+    with open(get_modifiers_path(), 'w') as outfile:
+        outfile.write(mods)
+
+def load_modifiers():
+    with open(get_modifiers_path(), 'r') as infile:
+        return infile.read()
+
 def get_unique_filename():
     return str(int(time.time())) + ".png"
 
@@ -272,7 +284,7 @@ class SavedMaskState:
     box: QRect
 class PaintWidget(QWidget):
 
-    def __init__(self, prompt_textarea_, stable_diffusion_manager_, *args, **kwargs):
+    def __init__(self, prompt_textarea_, modifiers_textarea_, stable_diffusion_manager_, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.np_image = None
         self.qt_image = None
@@ -349,6 +361,7 @@ class PaintWidget(QWidget):
         self.toggle_preview_shortcut.activated.connect(self.update_and(self.toggle_should_preview_scratchpad))
         
         self.prompt_textarea = prompt_textarea_
+        self.modifiers_textarea = modifiers_textarea_
         self.stable_diffusion_manager = stable_diffusion_manager_
         self.preview_image = None
     
@@ -711,7 +724,7 @@ class PaintWidget(QWidget):
                 return
 
 
-            prompt = self.prompt_textarea.text()
+            prompt = self.get_prompt()
             width = self.selection_rectangle.width()
             height = self.selection_rectangle.height()
             image = self.get_handler().generate(prompt,
@@ -730,7 +743,7 @@ class PaintWidget(QWidget):
 
     def handle_inpaint_button(self):
         try:
-            prompt = self.prompt_textarea.text()
+            prompt = self.get_prompt()
             if self.saved_mask_state != None:
                 self.selection_rectangle = self.saved_mask_state.box
 
@@ -815,10 +828,13 @@ class PaintWidget(QWidget):
     def handle_seed_change(self, new_seed):
         self.seed = new_seed
 
+    def get_prompt(self):
+        return self.prompt_textarea.text() + ", " + self.modifiers_textarea.text()
+
     def handle_reimagine_button(self):
 
         try:
-            prompt = self.prompt_textarea.text()
+            prompt = self.get_prompt()
             image_ = self.get_selection_np_image()
             image = image_[:, :, :3]
             reimagined_image = self.get_handler().reimagine(prompt,
@@ -917,6 +933,7 @@ def handle_github_button():
 def handle_huggingface_button():
     QDesktopServices.openUrl(QUrl('https://huggingface.co/settings/tokens'))
 
+
 if __name__ == '__main__':
     stbale_diffusion_manager = StableDiffusionManager()
 
@@ -1004,9 +1021,30 @@ if __name__ == '__main__':
     reimagine_button = QPushButton('Reimagine')
     inpaint_button = QPushButton('Inpaint')
 
-    prompt_textarea = QPlainTextEdit()
+    prompt_textarea = QLineEdit()
     prompt_textarea.setPlaceholderText('Prompt')
-    prompt_textarea.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+
+    modifiers_textarea = QLineEdit()
+    modifiers_textarea.setPlaceholderText('Modifiers')
+    modifiers_save_button = QPushButton('Save Modifiers')
+    modifiers_load_button = QPushButton('Load Modifiers')
+    modifiers_container = QWidget()
+    modifiers_layout = QHBoxLayout()
+    modifiers_layout.addWidget(modifiers_textarea)
+    modifiers_layout.addWidget(modifiers_save_button)
+    modifiers_layout.addWidget(modifiers_load_button)
+    modifiers_container.setLayout(modifiers_layout)
+
+    def handle_save_modifiers():
+        mods = modifiers_textarea.text()
+        save_modifiers(mods)
+
+    def handle_load_modifiers():
+        mods = load_modifiers()
+        modifiers_textarea.setText(mods)
+
+    modifiers_save_button.clicked.connect(handle_save_modifiers)
+    modifiers_load_button.clicked.connect(handle_load_modifiers)
 
     generate_button = QPushButton('Generate')
     save_container = QWidget()
@@ -1030,8 +1068,8 @@ if __name__ == '__main__':
     scratchpad_layout.addWidget(paste_scratchpad_button)
     scratchpad_container.setLayout(scratchpad_layout)
     export_button = QPushButton('Export')
-    widget = PaintWidget(prompt_textarea, stbale_diffusion_manager)
-    scratchpad = PaintWidget(prompt_textarea, stbale_diffusion_manager)
+    widget = PaintWidget(prompt_textarea, modifiers_textarea, stbale_diffusion_manager)
+    scratchpad = PaintWidget(prompt_textarea, modifiers_textarea, stbale_diffusion_manager)
 
     widget.scratchpad = scratchpad
     widget.set_should_preview_scratchpad(True)
@@ -1196,6 +1234,7 @@ if __name__ == '__main__':
     image_groupbox_layout.addWidget(box_size_limit_container)
     image_groupbox_layout.addWidget(fill_button)
     params_groupbox_layout.addWidget(prompt_textarea)
+    params_groupbox_layout.addWidget(modifiers_container)
     params_groupbox_layout.addWidget(strength_widget)
     params_groupbox_layout.addWidget(steps_widget)
     params_groupbox_layout.addWidget(guidance_widget)

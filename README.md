@@ -12,7 +12,10 @@ Note that if you want to run StableDiffusion locally, you have to install pytorc
 pip install torch==1.12.1+cu113 -f https://download.pytorch.org/whl/torch_stable.html
 ```
 
-2. Clone this repository and run `python unstablefusion.py`
+2. Create a huggingface account and an [access token](https://huggingface.co/settings/tokens), if you haven't done so already.
+Request access to the StableDiffusion model at [CompVis/stable-diffusion-v1-4](https://huggingface.co/CompVis/stable-diffusion-v1-4).
+
+3. Clone this repository and run `python unstablefusion.py`
 
 ## How to run using colab servers?
 

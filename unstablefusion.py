@@ -16,6 +16,7 @@ import requests
 from base64 import decodebytes
 import traceback
 import random
+from matplotlib import pyplot as plt
 
 SIZE_INCREASE_INCREMENT = 20
 
@@ -119,6 +120,9 @@ testtexture = get_texture()
 
 def qimage_from_array(arr):
     maximum = arr.max()
+    if arr.shape[-1] != 4:
+        arr = np.concatenate([arr, np.ones((arr.shape[0], arr.shape[1], 1)) * 255], axis=2)
+
     if maximum > 0 and maximum <= 1:
         return  QImage((arr.astype('uint8') * 255).data, arr.shape[1], arr.shape[0], QImage.Format_RGBA8888)
     else:
@@ -339,6 +343,10 @@ class PaintWidget(QWidget):
         
         self.prompt_textarea = prompt_textarea_
         self.stable_diffusion_manager = stable_diffusion_manager_
+        self.preview_image = None
+    
+    def set_preview_image(self, preview_image):
+        self.preview_image = np.array(Image.fromarray(preview_image).resize((self.selection_rectangle.width(), self.selection_rectangle.height()), Image.LANCZOS))
 
     def set_should_preview_scratchpad(self, val):
         self.should_preview_scratchpad = val
@@ -623,6 +631,10 @@ class PaintWidget(QWidget):
             # painter.setBrush(redbrush)
             painter.setPen(QPen(Qt.red,  1, Qt.SolidLine))
             painter.drawRect(self.selection_rectangle)
+
+        if not (self.preview_image is None):
+            painter.drawImage(self.selection_rectangle, qimage_from_array(self.preview_image))
+
         if self.should_preview_scratchpad and (self.scratchpad != None) and (self.scratchpad.isVisible()):
             if (not (self.scratchpad.np_image is None)) and (not (self.scratchpad.selection_rectangle is None)) and (not (self.selection_rectangle is None)):
                 try:
@@ -664,6 +676,17 @@ class PaintWidget(QWidget):
                 QErrorMessage(self).showMessage("Select the target square first")
                 return
 
+            def callback(iternum, latents, sd):
+
+                if iternum % 5 == 0:
+                    latents_ = 1 / 0.18215 * latents
+                    image = sd.vae.decode(latents_).sample
+                    image = (image / 2 + 0.5).clamp(0, 1)
+                    image = image.cpu().permute(0, 2, 3, 1).numpy()
+                    self.set_preview_image((image.copy()[0] * 255).astype(np.uint8)[:, :, :3])
+                    # self.render()
+                    self.repaint()
+
             prompt = self.prompt_textarea.text()
             width = self.selection_rectangle.width()
             height = self.selection_rectangle.height()
@@ -673,7 +696,9 @@ class PaintWidget(QWidget):
                                                 seed=self.seed,
                                                 strength=self.strength,
                                                 steps=self.steps,
-                                                guidance_scale=self.guidance_scale)
+                                                guidance_scale=self.guidance_scale,
+                                                callback=callback)
+            self.preview_image = None
             self.set_selection_image(image)
             self.update()
         except Exception:
@@ -998,7 +1023,7 @@ if __name__ == '__main__':
         "Steps",
          minimum=1,
          maximum=200,
-         default=50,
+         default=2,
          dtype=int,
          value_changed_callback=steps_change_callback)
 

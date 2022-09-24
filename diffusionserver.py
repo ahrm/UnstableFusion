@@ -1,7 +1,10 @@
 from urllib import request
 import numpy as np
 from PIL import Image
-from diffusers import StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionImg2ImgPipeline
+# from diffusers import StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionImg2ImgPipeline
+from diffusers import StableDiffusionInpaintPipeline, StableDiffusionImg2ImgPipeline
+from custom_pipeline.pipeline_stable_diffusion import StableDiffusionPipeline
+
 from torch import autocast
 import torch
 from base64 import encodebytes, decodebytes
@@ -76,8 +79,9 @@ class StableDiffusionHandler:
             )["sample"][0]
             return im.resize((image.shape[1], image.shape[0]), resample=Image.LANCZOS)
     
-    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1):
+    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1, callback=None):
         print(f'Generating with strength {strength}, steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
+
         with autocast("cuda"):
             im = self.text2img(
                 prompt=prompt,
@@ -86,6 +90,7 @@ class StableDiffusionHandler:
                 strength=strength,
                 num_inference_steps=steps,
                 guidance_scale=guidance_scale,
+                callback=callback,
                 generator=self.get_generator(seed)
             )["sample"][0]
 

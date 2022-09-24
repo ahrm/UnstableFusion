@@ -60,6 +60,7 @@ class StableDiffusionHandler:
             return torch.Generator("cuda").manual_seed(seed)
     
     def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1):
+        print(f'Inpainting with strength {strength}, steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
         image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
         mask_ = Image.fromarray(mask.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
 
@@ -76,6 +77,7 @@ class StableDiffusionHandler:
             return im.resize((image.shape[1], image.shape[0]), resample=Image.LANCZOS)
     
     def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1):
+        print(f'Generating with strength {strength}, steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
         with autocast("cuda"):
             im = self.text2img(
                 prompt=prompt,
@@ -91,6 +93,7 @@ class StableDiffusionHandler:
     
     def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1):
 
+        print(f'Reimagining with strength steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
         image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
         with autocast("cuda"):
             results = self.img2img(

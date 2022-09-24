@@ -666,7 +666,13 @@ class PaintWidget(QWidget):
             prompt = self.prompt_textarea.text()
             width = self.selection_rectangle.width()
             height = self.selection_rectangle.height()
-            image = self.get_handler().generate(prompt, width=width, height=height, seed=self.seed)
+            image = self.get_handler().generate(prompt,
+                                                width=width,
+                                                height=height,
+                                                seed=self.seed,
+                                                strength=self.strength,
+                                                steps=self.steps,
+                                                guidance_scale=self.guidance_scale)
             self.set_selection_image(image)
             self.update()
         except Exception:
@@ -682,12 +688,12 @@ class PaintWidget(QWidget):
             image, _ = inpaint_functions[self.inpaint_method](image, 255 - mask)
 
             inpainted_image = self.get_handler().inpaint(prompt,
-                                                        image,
-                                                        mask,
-                                                        strength=self.strength,
-                                                        steps=self.steps,
-                                                        guidance_scale=self.guidance_scale,
-                                                        seed=self.seed)
+                                                         image,
+                                                         mask,
+                                                         strength=self.strength,
+                                                         steps=self.steps,
+                                                         guidance_scale=self.guidance_scale,
+                                                         seed=self.seed)
                     
 
             self.set_selection_image(inpainted_image)

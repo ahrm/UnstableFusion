@@ -1003,8 +1003,11 @@ if __name__ == '__main__':
 
     reimagine_button = QPushButton('Reimagine')
     inpaint_button = QPushButton('Inpaint')
-    prompt_textarea = QLineEdit()
+
+    prompt_textarea = QPlainTextEdit()
     prompt_textarea.setPlaceholderText('Prompt')
+    prompt_textarea.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+
     generate_button = QPushButton('Generate')
     save_container = QWidget()
     save_layout = QHBoxLayout()

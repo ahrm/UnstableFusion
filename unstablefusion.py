@@ -168,7 +168,7 @@ class ServerStableDiffusionHandler:
         if self.addr[-1] != '/':
             self.addr += '/'
     
-    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1):
+    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1, callback=None):
         request_data = {
             'prompt': prompt,
             'strength': strength,
@@ -189,7 +189,7 @@ class ServerStableDiffusionHandler:
 
         return Image.frombytes(mode, size, image_data)
     
-    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1):
+    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1, callback=None):
             request_data = {
                 'prompt': prompt,
                 'strength': strength,
@@ -210,7 +210,7 @@ class ServerStableDiffusionHandler:
 
             return Image.frombytes(mode, size, image_data)
     
-    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=7.5):
+    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=7.5, callback=None):
         request_data = {
             'prompt': prompt,
             'steps': steps,
@@ -347,7 +347,7 @@ class PaintWidget(QWidget):
         self.preview_image = None
     
     def set_preview_image(self, preview_image):
-        self.preview_image = np.array(Image.fromarray(preview_image).resize((self.selection_rectangle.width(), self.selection_rectangle.height()), Image.LANCZOS))
+        self.preview_image = np.array(Image.fromarray(preview_image).resize((self.selection_rectangle.width(), self.selection_rectangle.height()), Image.NEAREST))
 
     def set_should_preview_scratchpad(self, val):
         self.should_preview_scratchpad = val
@@ -670,6 +670,20 @@ class PaintWidget(QWidget):
     def handle_redo_button(self):
         self.redo()
         self.update()
+    
+    def get_callback(self):
+        def callback(iternum, num_steps, latents, sd):
+
+            done = iternum / num_steps
+            # latents_ = 1 / 0.18215 * latents
+            # image = ((latents_ / 2 + 0.5).clamp(0, 1).cpu().numpy().transpose(0, 2, 3, 1)[0].copy() * 255).astype(np.uint8)
+            image = np.zeros((10, 10, 4), dtype=np.uint8)
+            num_highlights = int(image.shape[1] * done)
+            bottom = max(1, int(image.shape[0] * 0.1))
+            image[:bottom, :num_highlights, :] = np.array([0, 255, 0, 255])
+            self.set_preview_image(image)
+            self.repaint()
+        return callback
 
     def handle_generate_button(self):
         try:
@@ -677,16 +691,6 @@ class PaintWidget(QWidget):
                 QErrorMessage(self).showMessage("Select the target square first")
                 return
 
-            def callback(iternum, latents, sd):
-
-                if iternum % 5 == 0:
-                    latents_ = 1 / 0.18215 * latents
-                    image = sd.vae.decode(latents_).sample
-                    image = (image / 2 + 0.5).clamp(0, 1)
-                    image = image.cpu().permute(0, 2, 3, 1).numpy()
-                    self.set_preview_image((image.copy()[0] * 255).astype(np.uint8)[:, :, :3])
-                    # self.render()
-                    self.repaint()
 
             prompt = self.prompt_textarea.text()
             width = self.selection_rectangle.width()
@@ -698,7 +702,7 @@ class PaintWidget(QWidget):
                                                 strength=self.strength,
                                                 steps=self.steps,
                                                 guidance_scale=self.guidance_scale,
-                                                callback=callback)
+                                                callback=self.get_callback())
             self.preview_image = None
             self.set_selection_image(image)
             self.update()
@@ -720,7 +724,9 @@ class PaintWidget(QWidget):
                                                          strength=self.strength,
                                                          steps=self.steps,
                                                          guidance_scale=self.guidance_scale,
-                                                         seed=self.seed)
+                                                         seed=self.seed,
+                                                         callback=self.get_callback())
+            self.preview_image = None
                     
 
             self.set_selection_image(inpainted_image)
@@ -795,7 +801,9 @@ class PaintWidget(QWidget):
                                                         steps=self.steps,
                                                         strength=self.strength,
                                                         guidance_scale=self.guidance_scale,
-                                                        seed=self.seed)
+                                                        seed=self.seed,
+                                                        callback=self.get_callback())
+            self.preview_image = None
 
             self.set_selection_image(reimagined_image)
             self.update()
@@ -1003,6 +1011,8 @@ if __name__ == '__main__':
     scratchpad.scratchpad = widget
     widget.owner = scratchpad
 
+
+
     def strength_change_callback(val):
         widget.set_strength(val)
         scratchpad.set_strength(val)
@@ -1024,7 +1034,7 @@ if __name__ == '__main__':
         "Steps",
          minimum=1,
          maximum=200,
-         default=2,
+         default=30,
          dtype=int,
          value_changed_callback=steps_change_callback)
 
@@ -1116,6 +1126,17 @@ if __name__ == '__main__':
 
     disable_safety_button = QPushButton('Disable Safety Checker')
     
+    def handle_autofill():
+        image_ = widget.get_selection_np_image()
+        image = image_[:, :, :3]
+        mask = 255 - image_[:, :, 3]
+        function = inpaint_functions[inpaint_selector.currentText()]
+        image, _ = function(image, 255 - mask)
+        widget.set_selection_image(image)
+        widget.update()
+
+    fill_button = QPushButton('Autofill')
+    fill_button.clicked.connect(handle_autofill)
 
     scroll_area = QScrollArea()
 
@@ -1124,6 +1145,7 @@ if __name__ == '__main__':
     image_groupbox_layout.addWidget(paint_widgets_container)
     image_groupbox_layout.addWidget(undo_redo_container)
     image_groupbox_layout.addWidget(box_size_limit_container)
+    image_groupbox_layout.addWidget(fill_button)
     params_groupbox_layout.addWidget(prompt_textarea)
     params_groupbox_layout.addWidget(strength_widget)
     params_groupbox_layout.addWidget(steps_widget)

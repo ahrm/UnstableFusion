@@ -2,8 +2,10 @@ from urllib import request
 import numpy as np
 from PIL import Image
 # from diffusers import StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionImg2ImgPipeline
-from diffusers import StableDiffusionInpaintPipeline, StableDiffusionImg2ImgPipeline
+# from diffusers import StableDiffusionInpaintPipeline, StableDiffusionImg2ImgPipeline
 from custom_pipeline.pipeline_stable_diffusion import StableDiffusionPipeline
+from custom_pipeline.pipeline_stable_diffusion_img2img import StableDiffusionImg2ImgPipeline
+from custom_pipeline.pipeline_stable_diffusion_inpaint import StableDiffusionInpaintPipeline
 
 from torch import autocast
 import torch
@@ -62,7 +64,7 @@ class StableDiffusionHandler:
         else:
             return torch.Generator("cuda").manual_seed(seed)
     
-    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1):
+    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1, callback=None):
         print(f'Inpainting with strength {strength}, steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
         image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
         mask_ = Image.fromarray(mask.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
@@ -75,7 +77,8 @@ class StableDiffusionHandler:
                 strength=strength,
                 num_inference_steps=steps,
                 guidance_scale=guidance_scale,
-                generator=self.get_generator(seed)
+                generator=self.get_generator(seed),
+                callback=callback
             )["sample"][0]
             return im.resize((image.shape[1], image.shape[0]), resample=Image.LANCZOS)
     
@@ -96,7 +99,7 @@ class StableDiffusionHandler:
 
             return im.resize((width, height), resample=Image.LANCZOS)
     
-    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=0.75):
+    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=0.75, callback=None):
 
         print(f'Reimagining with strength {strength} steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
         image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
@@ -107,7 +110,8 @@ class StableDiffusionHandler:
                 num_inference_steps=steps,
                 guidance_scale=guidance_scale,
                 strength=strength,
-                generator=self.get_generator(seed)
+                generator=self.get_generator(seed),
+                callback=callback
             )["sample"]
             print(len(results))
             im = results[0]

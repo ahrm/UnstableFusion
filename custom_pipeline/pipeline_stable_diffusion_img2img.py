@@ -1,10 +1,11 @@
 import inspect
 import warnings
 from typing import List, Optional, Union, Callable
-import random
 
+import numpy as np
 import torch
 
+import PIL
 from transformers import CLIPFeatureExtractor, CLIPTextModel, CLIPTokenizer
 
 from diffusers.configuration_utils import FrozenDict
@@ -14,12 +15,23 @@ from diffusers.schedulers import DDIMScheduler, LMSDiscreteScheduler, PNDMSchedu
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
 
+def preprocess(image):
+    w, h = image.size
+    w, h = map(lambda x: x - x % 32, (w, h))  # resize to integer multiple of 32
+    image = image.resize((w, h), resample=PIL.Image.LANCZOS)
+    image = np.array(image).astype(np.float32) / 255.0
+    image = image[None].transpose(0, 3, 1, 2)
+    image = torch.from_numpy(image)
+    return 2.0 * image - 1.0
 
-class StableDiffusionPipeline(DiffusionPipeline):
+
+class StableDiffusionImg2ImgPipeline(DiffusionPipeline):
     r"""
-    Pipeline for text-to-image generation using Stable Diffusion.
+    Pipeline for text-guided image to image generation using Stable Diffusion.
+
     This model inherits from [`DiffusionPipeline`]. Check the superclass documentation for the generic methods the
     library implements for all the pipelines (such as downloading or saving, running on a particular device, etc.)
+
     Args:
         vae ([`AutoencoderKL`]):
             Variational Auto-Encoder (VAE) Model to encode and decode images to and from latent representations.
@@ -81,8 +93,10 @@ class StableDiffusionPipeline(DiffusionPipeline):
     def enable_attention_slicing(self, slice_size: Optional[Union[str, int]] = "auto"):
         r"""
         Enable sliced attention computation.
+
         When this option is enabled, the attention module will split the input tensor in slices, to compute attention
         in several steps. This is useful to save some memory in exchange for a small speed decrease.
+
         Args:
             slice_size (`str` or `int`, *optional*, defaults to `"auto"`):
                 When `"auto"`, halves the input to the attention heads, so attention will be computed in two steps. If
@@ -100,37 +114,41 @@ class StableDiffusionPipeline(DiffusionPipeline):
         Disable sliced attention computation. If `enable_attention_slicing` was previously invoked, this method will go
         back to computing attention in one step.
         """
-        # set slice_size = `None` to disable `attention slicing`
+        # set slice_size = `None` to disable `set_attention_slice`
         self.enable_attention_slicing(None)
 
     @torch.no_grad()
     def __call__(
         self,
         prompt: Union[str, List[str]],
-        height: Optional[int] = 512,
-        width: Optional[int] = 512,
+        init_image: Union[torch.FloatTensor, PIL.Image.Image],
+        strength: float = 0.8,
         num_inference_steps: Optional[int] = 50,
         guidance_scale: Optional[float] = 7.5,
         eta: Optional[float] = 0.0,
         generator: Optional[torch.Generator] = None,
-        latents: Optional[torch.FloatTensor] = None,
         output_type: Optional[str] = "pil",
         return_dict: bool = True,
         callback: Optional[Callable] = None,
-        **kwargs,
     ):
         r"""
         Function invoked when calling the pipeline for generation.
+
         Args:
             prompt (`str` or `List[str]`):
                 The prompt or prompts to guide the image generation.
-            height (`int`, *optional*, defaults to 512):
-                The height in pixels of the generated image.
-            width (`int`, *optional*, defaults to 512):
-                The width in pixels of the generated image.
+            init_image (`torch.FloatTensor` or `PIL.Image.Image`):
+                `Image`, or tensor representing an image batch, that will be used as the starting point for the
+                process.
+            strength (`float`, *optional*, defaults to 0.8):
+                Conceptually, indicates how much to transform the reference `init_image`. Must be between 0 and 1.
+                `init_image` will be used as a starting point, adding more noise to it the larger the `strength`. The
+                number of denoising steps depends on the amount of noise initially added. When `strength` is 1, added
+                noise will be maximum and the denoising process will run for the full number of iterations specified in
+                `num_inference_steps`. A value of 1, therefore, essentially ignores `init_image`.
             num_inference_steps (`int`, *optional*, defaults to 50):
                 The number of denoising steps. More denoising steps usually lead to a higher quality image at the
-                expense of slower inference.
+                expense of slower inference. This parameter will be modulated by `strength`.
             guidance_scale (`float`, *optional*, defaults to 7.5):
                 Guidance scale as defined in [Classifier-Free Diffusion Guidance](https://arxiv.org/abs/2207.12598).
                 `guidance_scale` is defined as `w` of equation 2. of [Imagen
@@ -143,16 +161,13 @@ class StableDiffusionPipeline(DiffusionPipeline):
             generator (`torch.Generator`, *optional*):
                 A [torch generator](https://pytorch.org/docs/stable/generated/torch.Generator.html) to make generation
                 deterministic.
-            latents (`torch.FloatTensor`, *optional*):
-                Pre-generated noisy latents, sampled from a Gaussian distribution, to be used as inputs for image
-                generation. Can be used to tweak the same generation with different prompts. If not provided, a latents
-                tensor will ge generated by sampling using the supplied random `generator`.
             output_type (`str`, *optional*, defaults to `"pil"`):
                 The output format of the generate image. Choose between
                 [PIL](https://pillow.readthedocs.io/en/stable/): `PIL.Image.Image` or `np.array`.
             return_dict (`bool`, *optional*, defaults to `True`):
                 Whether or not to return a [`~pipelines.stable_diffusion.StableDiffusionPipelineOutput`] instead of a
                 plain tuple.
+
         Returns:
             [`~pipelines.stable_diffusion.StableDiffusionPipelineOutput`] or `tuple`:
             [`~pipelines.stable_diffusion.StableDiffusionPipelineOutput`] if `return_dict` is True, otherwise a `tuple.
@@ -160,19 +175,6 @@ class StableDiffusionPipeline(DiffusionPipeline):
             list of `bool`s denoting whether the corresponding generated image likely represents "not-safe-for-work"
             (nsfw) content, according to the `safety_checker`.
         """
-
-        if "torch_device" in kwargs:
-            device = kwargs.pop("torch_device")
-            warnings.warn(
-                "`torch_device` is deprecated as an input argument to `__call__` and will be removed in v0.3.0."
-                " Consider using `pipe.to(torch_device)` instead."
-            )
-
-            # Set device as before (to be removed in 0.3.0)
-            if device is None:
-                device = "cuda" if torch.cuda.is_available() else "cpu"
-            self.to(device)
-
         if isinstance(prompt, str):
             batch_size = 1
         elif isinstance(prompt, list):
@@ -180,8 +182,38 @@ class StableDiffusionPipeline(DiffusionPipeline):
         else:
             raise ValueError(f"`prompt` has to be of type `str` or `list` but is {type(prompt)}")
 
-        if height % 8 != 0 or width % 8 != 0:
-            raise ValueError(f"`height` and `width` have to be divisible by 8 but are {height} and {width}.")
+        if strength < 0 or strength > 1:
+            raise ValueError(f"The value of strength should in [0.0, 1.0] but is {strength}")
+
+        # set timesteps
+        self.scheduler.set_timesteps(num_inference_steps)
+
+        if isinstance(init_image, PIL.Image.Image):
+            init_image = preprocess(init_image)
+
+        # encode the init image into latents and scale the latents
+        init_latent_dist = self.vae.encode(init_image.to(self.device)).latent_dist
+        init_latents = init_latent_dist.sample(generator=generator)
+        init_latents = 0.18215 * init_latents
+
+        # expand init_latents for batch_size
+        init_latents = torch.cat([init_latents] * batch_size)
+
+        # get the original timestep using init_timestep
+        offset = self.scheduler.config.get("steps_offset", 0)
+        init_timestep = int(num_inference_steps * strength) + offset
+        init_timestep = min(init_timestep, num_inference_steps)
+        if isinstance(self.scheduler, LMSDiscreteScheduler):
+            timesteps = torch.tensor(
+                [num_inference_steps - init_timestep] * batch_size, dtype=torch.long, device=self.device
+            )
+        else:
+            timesteps = self.scheduler.timesteps[-init_timestep]
+            timesteps = torch.tensor([timesteps] * batch_size, dtype=torch.long, device=self.device)
+
+        # add noise to latents using the timesteps
+        noise = torch.randn(init_latents.shape, generator=generator, device=self.device)
+        init_latents = self.scheduler.add_noise(init_latents, noise, timesteps)
 
         # get prompt text embeddings
         text_input = self.tokenizer(
@@ -191,7 +223,6 @@ class StableDiffusionPipeline(DiffusionPipeline):
             truncation=True,
             return_tensors="pt",
         )
-
         text_embeddings = self.text_encoder(text_input.input_ids.to(self.device))[0]
 
         # here `guidance_scale` is defined analog to the guidance weight `w` of equation (2)
@@ -211,31 +242,6 @@ class StableDiffusionPipeline(DiffusionPipeline):
             # to avoid doing two forward passes
             text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
 
-        # get the initial random noise unless the user supplied it
-
-        # Unlike in other pipelines, latents need to be generated in the target device
-        # for 1-to-1 results reproducibility with the CompVis implementation.
-        # However this currently doesn't work in `mps`.
-        latents_device = "cpu" if self.device.type == "mps" else self.device
-        latents_shape = (batch_size, self.unet.in_channels, height // 8, width // 8)
-        if latents is None:
-            latents = torch.randn(
-                latents_shape,
-                generator=generator,
-                device=latents_device,
-            )
-        else:
-            if latents.shape != latents_shape:
-                raise ValueError(f"Unexpected latents shape, got {latents.shape}, expected {latents_shape}")
-        latents = latents.to(self.device)
-
-        # set timesteps
-        self.scheduler.set_timesteps(num_inference_steps)
-
-        # if we use LMSDiscreteScheduler, let's make sure latents are multiplied by sigmas
-        if isinstance(self.scheduler, LMSDiscreteScheduler):
-            latents = latents * self.scheduler.sigmas[0]
-
         # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
         # eta (η) is only used with the DDIMScheduler, it will be ignored for other schedulers.
         # eta corresponds to η in DDIM paper: https://arxiv.org/abs/2010.02502
@@ -245,11 +251,18 @@ class StableDiffusionPipeline(DiffusionPipeline):
         if accepts_eta:
             extra_step_kwargs["eta"] = eta
 
-        for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
+        latents = init_latents
+
+        t_start = max(num_inference_steps - init_timestep + offset, 0)
+        for i, t in enumerate(self.progress_bar(self.scheduler.timesteps[t_start:])):
+            t_index = t_start + i
+
             # expand the latents if we are doing classifier free guidance
             latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
+
+            # if we use LMSDiscreteScheduler, let's make sure latents are multiplied by sigmas
             if isinstance(self.scheduler, LMSDiscreteScheduler):
-                sigma = self.scheduler.sigmas[i]
+                sigma = self.scheduler.sigmas[t_index]
                 # the model input needs to be scaled to match the continuous ODE formulation in K-LMS
                 latent_model_input = latent_model_input / ((sigma**2 + 1) ** 0.5)
 
@@ -263,10 +276,9 @@ class StableDiffusionPipeline(DiffusionPipeline):
 
             # compute the previous noisy sample x_t -> x_t-1
             if isinstance(self.scheduler, LMSDiscreteScheduler):
-                latents = self.scheduler.step(noise_pred, i, latents, **extra_step_kwargs).prev_sample
+                latents = self.scheduler.step(noise_pred, t_index, latents, **extra_step_kwargs).prev_sample
             else:
                 latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs).prev_sample
-
             if callback:
                 callback(i, num_inference_steps, latents, self)
 

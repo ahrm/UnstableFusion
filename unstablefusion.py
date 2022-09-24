@@ -766,6 +766,7 @@ class PaintWidget(QWidget):
             reimagined_image = self.get_handler().reimagine(prompt,
                                                         image,
                                                         steps=self.steps,
+                                                        strength=self.strength,
                                                         guidance_scale=self.guidance_scale,
                                                         seed=self.seed)
 

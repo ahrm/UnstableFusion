@@ -91,9 +91,9 @@ class StableDiffusionHandler:
 
             return im.resize((width, height), resample=Image.LANCZOS)
     
-    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1):
+    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=0.75):
 
-        print(f'Reimagining with strength steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
+        print(f'Reimagining with strength {strength} steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
         image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
         with autocast("cuda"):
             results = self.img2img(
@@ -101,6 +101,7 @@ class StableDiffusionHandler:
                 init_image=image_,
                 num_inference_steps=steps,
                 guidance_scale=guidance_scale,
+                strength=strength,
                 generator=self.get_generator(seed)
             )["sample"]
             print(len(results))

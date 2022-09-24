@@ -15,6 +15,7 @@ import datetime
 import requests
 from base64 import decodebytes
 import traceback
+import random
 
 SIZE_INCREASE_INCREMENT = 20
 
@@ -893,6 +894,7 @@ if __name__ == '__main__':
 
     huggingface_token_open_button.clicked.connect(handle_huggingface_button)
 
+
     tools_widget = QWidget()
     tools_layout = QVBoxLayout()
     load_image_button = QPushButton('Load Image')
@@ -919,12 +921,18 @@ if __name__ == '__main__':
     seed_text = QLineEdit()
     seed_label = QLabel('Seed')
     seed_text.setText('-1')
+    seed_random_button = QPushButton('🎲')
     seed_reset_button = QPushButton('↺')
     seed_layout.addWidget(seed_label)
     seed_layout.addWidget(seed_text)
+    seed_layout.addWidget(seed_random_button)
     seed_layout.addWidget(seed_reset_button)
     seed_container.setLayout(seed_layout)
 
+    def random_seed_buton_handler():
+        seed_text.setText(str(random.randint(0, 1000000)))
+
+    seed_random_button.clicked.connect(random_seed_buton_handler)
 
     undo_redo_container = QWidget()
     undo_redo_layout = QHBoxLayout()

@@ -126,9 +126,10 @@ def run_app():
         steps = data["steps"]
         guidance_scale = data["guidance_scale"]
         seed = data["seed"]
+        strength = data["strength"]
         image = np.array(data['image'])
 
-        generated = stable_diffusion_handler.reimagine(prompt, image, steps=steps, guidance_scale=guidance_scale, seed=seed)
+        generated = stable_diffusion_handler.reimagine(prompt, image, steps=steps, guidance_scale=guidance_scale, seed=seed, strength=strength)
 
         return jsonify({
             "status": "success",

@@ -3,9 +3,15 @@ import numpy as np
 from PIL import Image
 # from diffusers import StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionImg2ImgPipeline
 # from diffusers import StableDiffusionInpaintPipeline, StableDiffusionImg2ImgPipeline
-from custom_pipeline.pipeline_stable_diffusion import StableDiffusionPipeline
-from custom_pipeline.pipeline_stable_diffusion_img2img import StableDiffusionImg2ImgPipeline
-from custom_pipeline.pipeline_stable_diffusion_inpaint import StableDiffusionInpaintPipeline
+try:
+    from .custom_pipeline.pipeline_stable_diffusion import StableDiffusionPipeline
+    from .custom_pipeline.pipeline_stable_diffusion_img2img import StableDiffusionImg2ImgPipeline
+    from .custom_pipeline.pipeline_stable_diffusion_inpaint import StableDiffusionInpaintPipeline
+except ImportError as e:
+    from custom_pipeline.pipeline_stable_diffusion import StableDiffusionPipeline
+    from custom_pipeline.pipeline_stable_diffusion_img2img import StableDiffusionImg2ImgPipeline
+    from custom_pipeline.pipeline_stable_diffusion_inpaint import StableDiffusionInpaintPipeline
+
 
 from torch import autocast
 import torch

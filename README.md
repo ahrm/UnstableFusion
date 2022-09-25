@@ -12,6 +12,12 @@ Note that if you want to run StableDiffusion locally, you have to install pytorc
 pip install torch==1.12.1+cu113 -f https://download.pytorch.org/whl/torch_stable.html
 ```
 
+Note: On linux, if you encounter `Could not load the Qt platform plugin "xcb"` error, run this:
+```
+pip uninstall opencv-python     (solve a xcb compatibility issue)
+pip install opencv-python-headless     (solve a xcb compatibility issue)
+```
+
 2. Create a huggingface account and an [access token](https://huggingface.co/settings/tokens), if you haven't done so already.
 Request access to the StableDiffusion model at [CompVis/stable-diffusion-v1-4](https://huggingface.co/CompVis/stable-diffusion-v1-4).
 

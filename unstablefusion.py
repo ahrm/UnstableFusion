@@ -39,6 +39,10 @@ def get_modifiers_path():
     parent_path = pathlib.Path(__file__).parents[0]
     return str(parent_path / 'modifiers.txt')
 
+def get_mod_list_path():
+    parent_path = pathlib.Path(__file__).parents[0]
+    return str(parent_path / 'mods.txt')
+
 def save_modifiers(mods):
     with open(get_modifiers_path(), 'w') as outfile:
         outfile.write(mods)
@@ -969,11 +973,11 @@ def handle_huggingface_button():
 def handle_colab_button():
     QDesktopServices.openUrl(QUrl('https://colab.research.google.com/github/ahrm/UnstableFusion/blob/main/UnstableFusionServer.ipynb'))
 
-class MyLineEdit(QLineEdit):
+class PromptLineEdit(QLineEdit):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, mods, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.suggestions = ['one', 'two', 'three']
+        self.suggestions = mods
         self.should_suggest = True
 
         def text_changed(text):
@@ -993,11 +997,16 @@ class MyLineEdit(QLineEdit):
     
     def keyPressEvent(self, e: QKeyEvent):
         disablers = [Qt.Key_Backspace, Qt.Key_Delete]
+        completers = [Qt.Key_Return, Qt.Key_Tab]
 
         if e.key() in disablers:
             self.should_suggest = False
         else:
             self.should_suggest = True
+        
+        if e.key() in completers:
+            self.setSelection(len(self.text()), len(self.text()))
+            return
 
         return super().keyPressEvent(e)
 
@@ -1012,6 +1021,8 @@ class MyLineEdit(QLineEdit):
 if __name__ == '__main__':
     stbale_diffusion_manager = StableDiffusionManager()
 
+    with open(get_mod_list_path(), 'r', encoding='utf8') as infile:
+        mods = infile.read().split('\n')
 
     app = QApplication(sys.argv)
     icons_path = pathlib.Path(__file__).parent / 'icons'
@@ -1096,10 +1107,10 @@ if __name__ == '__main__':
     reimagine_button = QPushButton('Reimagine')
     inpaint_button = QPushButton('Inpaint')
 
-    prompt_textarea = MyLineEdit()
+    prompt_textarea = QLineEdit()
     prompt_textarea.setPlaceholderText('Prompt')
 
-    modifiers_textarea = QLineEdit()
+    modifiers_textarea = PromptLineEdit(mods)
     modifiers_textarea.setPlaceholderText('Modifiers')
     modifiers_save_button = QPushButton('Save Modifiers')
     modifiers_load_button = QPushButton('Load Modifiers')

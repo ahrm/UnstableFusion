@@ -753,7 +753,9 @@ class PaintWidget(QWidget):
                 mask = 255 - image_[:, :, 3]
                 image, _ = inpaint_functions[self.inpaint_method](image, 255 - mask)
             else:
+                mask_ = 255 - image_[:, :, 3]
                 mask = 255 - self.saved_mask_state.mask
+                image, _ = inpaint_functions[self.inpaint_method](image, 255 - mask_)
 
 
             inpainted_image = self.get_handler().inpaint(prompt,

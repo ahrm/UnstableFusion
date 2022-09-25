@@ -975,6 +975,45 @@ def handle_huggingface_button():
 def handle_colab_button():
     QDesktopServices.openUrl(QUrl('https://colab.research.google.com/github/ahrm/UnstableFusion/blob/main/UnstableFusionServer.ipynb'))
 
+class MyLineEdit(QLineEdit):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.suggestions = ['one', 'two', 'three']
+        self.should_suggest = True
+
+        def text_changed(text):
+            if not self.should_suggest:
+                return
+
+            last_part = text.split(',')[-1].strip()
+            if len(last_part) == 0:
+                return
+            suggestion = self.match_suggestion(last_part)
+            if suggestion:
+                rest= suggestion[len(last_part):]
+                self.setText(text + rest)
+                self.setSelection(len(text), len(text) + len(rest))
+
+        self.textChanged.connect(text_changed)
+    
+    def keyPressEvent(self, e: QKeyEvent):
+        disablers = [Qt.Key_Backspace, Qt.Key_Delete]
+
+        if e.key() in disablers:
+            self.should_suggest = False
+        else:
+            self.should_suggest = True
+
+        return super().keyPressEvent(e)
+
+    def match_suggestion(self, text):
+        for sug in self.suggestions:
+            if sug.startswith(text):
+                return sug
+        return None
+    
+    
 
 if __name__ == '__main__':
     stbale_diffusion_manager = StableDiffusionManager()
@@ -1063,7 +1102,7 @@ if __name__ == '__main__':
     reimagine_button = QPushButton('Reimagine')
     inpaint_button = QPushButton('Inpaint')
 
-    prompt_textarea = QLineEdit()
+    prompt_textarea = MyLineEdit()
     prompt_textarea.setPlaceholderText('Prompt')
 
     modifiers_textarea = QLineEdit()

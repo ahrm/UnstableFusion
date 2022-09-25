@@ -661,7 +661,7 @@ class PaintWidget(QWidget):
 
         new_x = (point.x() - self.width()/2 + self.np_image.shape[1] * self.window_scale / 2 ) / self.window_scale
         new_y = (point.y() - self.height()/2 + self.np_image.shape[0] * self.window_scale / 2) / self.window_scale
-        return QPoint(new_x, new_y)
+        return QPoint(int(new_x), int(new_y))
 
     def image_to_window_point(self, point: QPoint):
         new_x = point.x() * self.window_scale + (self.width() - self.np_image.shape[1] * self.window_scale) / 2

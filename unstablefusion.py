@@ -48,8 +48,12 @@ def save_modifiers(mods):
         outfile.write(mods)
 
 def load_modifiers():
-    with open(get_modifiers_path(), 'r') as infile:
-        return infile.read()
+    try:
+        with open(get_modifiers_path(), 'r') as infile:
+            return infile.read()
+    except FileNotFoundError:
+        pass
+
 
 def get_unique_filename():
     return str(int(time.time())) + ".png"
@@ -1127,7 +1131,8 @@ if __name__ == '__main__':
 
     def handle_load_modifiers():
         mods = load_modifiers()
-        modifiers_textarea.setText(mods)
+        if mods:
+            modifiers_textarea.setText(mods)
 
     modifiers_save_button.clicked.connect(handle_save_modifiers)
     modifiers_load_button.clicked.connect(handle_load_modifiers)

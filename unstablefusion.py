@@ -933,6 +933,9 @@ def handle_github_button():
 def handle_huggingface_button():
     QDesktopServices.openUrl(QUrl('https://huggingface.co/settings/tokens'))
 
+def handle_colab_button():
+    QDesktopServices.openUrl(QUrl('https://colab.research.google.com/github/ahrm/UnstableFusion/blob/main/UnstableFusionServer.ipynb'))
+
 
 if __name__ == '__main__':
     stbale_diffusion_manager = StableDiffusionManager()
@@ -1139,13 +1142,22 @@ if __name__ == '__main__':
 
     def runtime_change_callback(num):
         if runtime_options[num] == 'local':
-            server_address_widget.setDisabled(True)
+            server_container.setDisabled(True)
         else:
-            server_address_widget.setEnabled(True)
+            server_container.setEnabled(True)
 
     runtime_options = ['local', 'server']
     runtime_select_container, runtime_select_widget = create_select_widget('Runtime', runtime_options, select_callback=runtime_change_callback)
+    
+    server_container = QWidget()
+    server_layout = QHBoxLayout()
     server_address_widget = QLineEdit()
+    open_colab_widget = QPushButton('Open Colab Notebook')
+    server_layout.addWidget(server_address_widget)
+    server_layout.addWidget(open_colab_widget)
+    server_container.setLayout(server_layout)
+
+    open_colab_widget.clicked.connect(handle_colab_button)
 
     stbale_diffusion_manager.mode_widget = runtime_select_widget
     stbale_diffusion_manager.huggingface_token_widget = huggingface_token_text_field
@@ -1153,7 +1165,8 @@ if __name__ == '__main__':
 
     server_address_widget.setPlaceholderText('server address')
     if runtime_select_widget.currentText() == 'local':
-        server_address_widget.setDisabled(True)
+        server_container.setDisabled(True)
+
     server_address_widget.setText('http://127.0.0.1:5000')
 
     box_size_limit_container = QWidget()
@@ -1240,7 +1253,7 @@ if __name__ == '__main__':
     params_groupbox_layout.addWidget(guidance_widget)
     params_groupbox_layout.addWidget(seed_container)
     run_groupbox_layout.addWidget(runtime_select_container)
-    run_groupbox_layout.addWidget(server_address_widget)
+    run_groupbox_layout.addWidget(server_container)
     run_groupbox_layout.addWidget(generate_button)
     run_groupbox_layout.addWidget(inpaint_container)
     run_groupbox_layout.addWidget(mask_control_container)

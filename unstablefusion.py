@@ -1,28 +1,22 @@
-from base64 import decodebytes
-from dataclasses import dataclass
-import datetime
+from multiprocessing import dummy
+from PyQt5.QtWidgets import *
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+import sys
+import numpy as np
+from PIL import Image
+from diffusionserver import StableDiffusionHandler
+import cv2
+import pathlib
+import time
 import json
 import os
-import pathlib
-import random
-import sys
-import time
-import traceback
-
-from PIL import Image
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
-import cv2
-import numpy as np
+import datetime
 import requests
-
-try:
-    from diffusionserver import StableDiffusionHandler
-except ImportError as e:
-    print(traceback.format_exc())
-    print('Could not import StableDiffusionHandler. Please install the required dependencies if you want to run locally.')
-
+from base64 import decodebytes
+import traceback
+import random
+from dataclasses import dataclass
 
 SIZE_INCREASE_INCREMENT = 20
 
@@ -298,7 +292,6 @@ class PaintWidget(QWidget):
         self.selection_rectangle_size = (100, 100)
         self.is_dragging = False
         self.image_rect = None
-        self.window_scale = 1
 
         self.strength = 0.75
         self.steps = 50
@@ -463,7 +456,7 @@ class PaintWidget(QWidget):
         mid_button = self.get_mouse_button(Qt.MidButton)
 
         if self.is_dragging:
-            self.selection_rectangle.moveCenter(self.scale_pos_from_window(e.pos()))
+            self.selection_rectangle.moveCenter(e.pos())
 
             if e.buttons() & right_button:
                 self.erase_selection(False)
@@ -491,14 +484,6 @@ class PaintWidget(QWidget):
         delta *= max(1, self.selection_rectangle_size[0] / 10)
 
         self.selection_rectangle_size = [self.selection_rectangle_size[0] + delta, self.selection_rectangle_size[1] + delta]
-
-        if QApplication.keyboardModifiers() & Qt.ControlModifier:
-            if delta > 0:
-                self.inc_window_scale()
-            else:
-                self.dec_window_scale()
-            self.update()
-            return
 
         if self.selection_rectangle_size[0] <= 0:
             self.selection_rectangle_size[0] = 1
@@ -620,12 +605,6 @@ class PaintWidget(QWidget):
         H = SIZE_INCREASE_INCREMENT // 2
         self.set_np_image(self.np_image[H:-H, H:-H, :])
 
-    def inc_window_scale(self):
-        self.window_scale *= 1.1
-
-    def dec_window_scale(self):
-        self.window_scale /= 1.1
-
     def get_mouse_button(self, button):
         if not self.shoulds_swap_buttons:
             return button
@@ -638,8 +617,7 @@ class PaintWidget(QWidget):
 
     def mousePressEvent(self, e):
         # return super().mousePressEvent(e)
-        pos = self.scale_pos_from_window(e.pos())
-        top_left = QPoint(int(pos.x() - self.selection_rectangle_size[0] / 2), int(pos.y() - self.selection_rectangle_size[1] / 2))
+        top_left = QPoint(int(e.pos().x() - self.selection_rectangle_size[0] / 2), int(e.pos().y() - self.selection_rectangle_size[1] / 2))
         self.selection_rectangle = QRect(top_left, QSize(int(self.selection_rectangle_size[0]), int(self.selection_rectangle_size[1])))
 
         button = self.get_mouse_button(e.button())
@@ -659,21 +637,6 @@ class PaintWidget(QWidget):
 
         self.update()
 
-    def scale_pos_from_window(self, pos):
-        new_x = (pos.x() - self.width() / 2) / self.window_scale + (self.np_image.shape[1]) / 2
-        new_y = (pos.y() - self.height() / 2) / self.window_scale + (self.np_image.shape[0]) / 2
-        return QPoint(int(new_x), int(new_y))
-    
-    def scale_rect_to_window(self, rect: QRect):
-        center = rect.center()
-        new_center_x = int((center.x() - self.width() / 2) * self.window_scale + self.width() / 2)
-        new_center_y = int((center.y() - self.height() / 2) * self.window_scale + self.height() / 2 )
-
-        new_width = int(rect.width() * self.window_scale)
-        new_height = int(rect.height() * self.window_scale)
-        return QRect(new_center_x - new_width / 2, new_center_y - new_height / 2, new_width, new_height)
-    
-
     def paintEvent(self, e):
         painter = QPainter(self)
 
@@ -689,27 +652,27 @@ class PaintWidget(QWidget):
             offset_y = (window_height - h) / 2
             self.image_rect = QRect(int(offset_x), int(offset_y), int(w), int(h))
             prev_brush = painter.brush()
-            painter.fillRect(self.scale_rect_to_window(self.image_rect), checkerboard_brush)
+            painter.fillRect(self.image_rect, checkerboard_brush)
             painter.setBrush(prev_brush)
-            painter.drawImage(self.scale_rect_to_window(self.image_rect), self.qt_image)
+            painter.drawImage(self.image_rect, self.qt_image)
 
         if self.saved_mask_state:
             painter.setPen(QPen(Qt.blue,  1, Qt.DashLine))
-            painter.drawRect(self.scale_rect_to_window(self.saved_mask_state.box))
+            painter.drawRect(self.saved_mask_state.box)
 
         if self.selection_rectangle != None:
             # painter.setBrush(redbrush)
             painter.setPen(QPen(Qt.red,  1, Qt.SolidLine))
-            painter.drawRect(self.scale_rect_to_window(self.selection_rectangle))
+            painter.drawRect(self.selection_rectangle)
 
         if not (self.preview_image is None):
-            painter.drawImage(self.scale_rect_to_window(self.selection_rectangle), qimage_from_array(self.preview_image))
+            painter.drawImage(self.selection_rectangle, qimage_from_array(self.preview_image))
 
         if self.should_preview_scratchpad and (self.scratchpad != None) and (self.scratchpad.isVisible()):
             if (not (self.scratchpad.np_image is None)) and (not (self.scratchpad.selection_rectangle is None)) and (not (self.selection_rectangle is None)):
                 try:
                     image = np.array(Image.fromarray(self.scratchpad.get_selection_np_image()).resize((self.selection_rectangle.width(), self.selection_rectangle.height()), Image.LANCZOS))
-                    painter.drawImage(self.scale_rect_to_window(self.selection_rectangle), qimage_from_array(image))
+                    painter.drawImage(self.selection_rectangle, qimage_from_array(image))
                 except Exception:
                     print(traceback.format_exc())
 

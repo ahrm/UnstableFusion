@@ -1,11 +1,17 @@
-from multiprocessing import dummy
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 import sys
 import numpy as np
 from PIL import Image
-from diffusionserver import StableDiffusionHandler
+import traceback
+
+try:
+    from diffusionserver import StableDiffusionHandler
+except ImportError:
+    print(traceback.format_exc())
+    print('Could not import StableDiffusionHandler, can not run locally')
+
 import cv2
 import pathlib
 import time
@@ -14,7 +20,6 @@ import os
 import datetime
 import requests
 from base64 import decodebytes
-import traceback
 import random
 from dataclasses import dataclass
 
@@ -117,6 +122,7 @@ shortcuts_ = {
     'decrease_size': '-',
     'paste_from_scratchpad': 'p',
     'toggle_preview': 'T',
+    'autofill_selection': 'F',
 }
 
 def get_shortcut_dict():
@@ -155,7 +161,7 @@ class DummyStableDiffusionHandler:
     def __init__(self):
         pass
 
-    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1):
+    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1, **kwargs):
         inpainted_image = np.zeros_like(image)
         for i in range(inpainted_image.shape[1]):
             for j in range(inpainted_image.shape[0]):
@@ -167,7 +173,7 @@ class DummyStableDiffusionHandler:
         new_image[mask > 0] = inpainted_image[mask > 0]
         return Image.fromarray(new_image)
 
-    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5, seed=-1):
+    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5, seed=-1, **kwargs):
 
         np_im = np.zeros((height, width, 3), dtype=np.uint8)
         np_im[:, :, 2] = 255
@@ -177,7 +183,7 @@ class DummyStableDiffusionHandler:
             np_im[:, j, 2] = int((j / np_im.shape[0]) * 255)
         return Image.fromarray(np_im)
 
-    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1):
+    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, **kwargs):
         return image
 
 
@@ -267,6 +273,7 @@ class StableDiffusionManager:
     def get_local_handler(self, token=True):
         if self.cached_local_handler == None:
             self.cached_local_handler = StableDiffusionHandler(token)
+            # self.cached_local_handler = DummyStableDiffusionHandler()
 
         return self.cached_local_handler
     
@@ -368,6 +375,9 @@ class PaintWidget(QWidget):
 
         self.toggle_preview_shortcut = QShortcut(QKeySequence(shortcuts['toggle_preview']), self)
         self.toggle_preview_shortcut.activated.connect(self.update_and(self.toggle_should_preview_scratchpad))
+
+        self.autofill_shortcut = QShortcut(QKeySequence(shortcuts['autofill_selection']), self)
+        self.autofill_shortcut.activated.connect(self.update_and(self.handle_autofill))
         
         self.prompt_textarea = prompt_textarea_
         self.modifiers_textarea = modifiers_textarea_
@@ -808,6 +818,8 @@ class PaintWidget(QWidget):
             self.preview_image = None
                     
 
+            # add mask as alpha channel
+            # inpainted_image = np.concatenate([inpainted_image, mask[:, :, np.newaxis]], axis=2)
             self.set_selection_image(inpainted_image)
             self.update()
         except:
@@ -836,6 +848,15 @@ class PaintWidget(QWidget):
                 select_color_button.setStyleSheet(sheet)
 
 
+
+    def handle_autofill(self):
+        image_ = self.get_selection_np_image()
+        image = image_[:, :, :3]
+        mask = 255 - image_[:, :, 3]
+        function = inpaint_functions[self.inpaint_method]
+        image, _ = function(image, 255 - mask)
+        self.set_selection_image(image)
+        self.update()
 
     def handle_paint_button(self):
         self.paint_selection()
@@ -1294,13 +1315,7 @@ if __name__ == '__main__':
     disable_safety_button = QPushButton('Disable Safety Checker')
     
     def handle_autofill():
-        image_ = widget.get_selection_np_image()
-        image = image_[:, :, :3]
-        mask = 255 - image_[:, :, 3]
-        function = inpaint_functions[inpaint_selector.currentText()]
-        image, _ = function(image, 255 - mask)
-        widget.set_selection_image(image)
-        widget.update()
+        widget.handle_autofill()
 
     fill_button = QPushButton('Autofill')
     fill_button.clicked.connect(handle_autofill)

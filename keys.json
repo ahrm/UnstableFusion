@@ -11,5 +11,7 @@
     "export": "Ctrl+S",
     "increase_size": "+",
     "decrease_size": "-",
-    "paste_from_scratchpad": "P"
+    "paste_from_scratchpad": "P",
+    "toggle_preview": "T",
+    "autofill_selection": "F"
 }

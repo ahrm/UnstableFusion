@@ -126,7 +126,9 @@ shortcuts_ = {
     "small_selection": "1",
     "medium_selection": "2",
     "large_selection": "3",
-    "fit_image": "0"
+    "fit_image": "0",
+    "save_mask": "Q",
+    "forget_mask": "Shift+Q",
 }
 
 def get_shortcut_dict():
@@ -394,6 +396,12 @@ class PaintWidget(QWidget):
 
         self.max_selection_shortcut = QShortcut(QKeySequence(shortcuts['fit_selection']), self)
         self.max_selection_shortcut.activated.connect(self.update_and(self.set_size_fit_image))
+
+        self.save_mask_shortcut = QShortcut(QKeySequence(shortcuts['save_mask']), self)
+        self.save_mask_shortcut.activated.connect(self.update_and(self.handle_save_mask))
+
+        self.forget_mask_shortcut = QShortcut(QKeySequence(shortcuts['forget_mask']), self)
+        self.forget_mask_shortcut.activated.connect(self.update_and(self.handle_forget_mask))
         
         self.prompt_textarea = prompt_textarea_
         self.modifiers_textarea = modifiers_textarea_
@@ -924,6 +932,14 @@ class PaintWidget(QWidget):
     def handle_seed_change(self, new_seed):
         self.seed = new_seed
 
+    def handle_save_mask(self):
+        self.save_mask()
+        self.update()
+
+    def handle_forget_mask(self):
+        self.reset_saved_mask()
+        self.update()
+
     def get_prompt(self):
         return self.prompt_textarea.text() + ", " + self.modifiers_textarea.text()
 
@@ -1354,22 +1370,12 @@ if __name__ == '__main__':
     fill_button = QPushButton('Autofill')
     fill_button.clicked.connect(handle_autofill)
 
-    def handle_save_mask_button():
-        widget.save_mask()
-        widget.update()
-
-    def handle_forget_mask_button():
-        widget.reset_saved_mask()
-        widget.update()
-
     mask_control_container = QWidget()
     mask_control_layout = QHBoxLayout()
 
     mask_container_label = QLabel('Advanced Inpainting Mask')
     save_mask_button = QPushButton('Save Mask')
-    save_mask_button.clicked.connect(handle_save_mask_button)
     forget_mask_button = QPushButton('Forget Mask')
-    forget_mask_button.clicked.connect(handle_forget_mask_button)
     mask_control_layout.addWidget(mask_container_label)
     mask_control_layout.addWidget(save_mask_button)
     mask_control_layout.addWidget(forget_mask_button)
@@ -1436,6 +1442,8 @@ if __name__ == '__main__':
     twitter_button.clicked.connect(lambda : handle_twitter_button())
     github_button.clicked.connect(lambda : handle_github_button())
     disable_safety_button.clicked.connect(lambda : handle_disable_safety())
+    save_mask_button.clicked.connect(lambda : widget.handle_save_mask())
+    forget_mask_button.clicked.connect(lambda : widget.handle_forget_mask())
 
     def seed_change_function(val):
         try:

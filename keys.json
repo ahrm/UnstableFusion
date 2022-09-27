@@ -17,5 +17,7 @@
     "small_selection": "1",
     "medium_selection": "2",
     "large_selection": "3",
-    "fit_selection": "0"
+    "fit_selection": "0",
+    "save_mask": "Q",
+    "forget_mask": "Shift+Q"
 }

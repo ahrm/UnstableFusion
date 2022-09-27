@@ -345,73 +345,36 @@ class PaintWidget(QWidget):
     
     def add_shortcuts(self):
         shortcuts = get_shortcut_dict()
-        self.paste_shortcut = QShortcut(QKeySequence(shortcuts['paste_from_scratchpad']), self)
-        self.paste_shortcut.activated.connect(self.handle_paste_scratchpad)
+        shortcut_function_map = {
+            'paste_from_scratchpad': self.handle_paste_scratchpad,
+            'decrease_size': self.handle_decrease_size_button,
+            'increase_size': self.handle_increase_size_button,
+            'export': self.handle_export_button,
+            'reimagine': self.handle_reimagine_button,
+            'inpaint': self.handle_inpaint_button,
+            'generate': self.handle_generate_button,
+            'select_color': self.handle_select_color_button,
+            'undo': self.undo,
+            'redo': self.redo,
+            'open': self.handle_load_image_button,
+            'toggle_scratchpad': self.handle_show_scratchpad,
+            'quicksave': self.handle_quicksave_button,
+            'quickload': self.handle_quickload_button,
+            'toggle_preview': self.toggle_should_preview_scratchpad,
+            'autofill_selection': self.handle_autofill,
+            'small_selection': self.set_size_small,
+            'medium_selection': self.set_size_medium,
+            'large_selection': self.set_size_large,
+            'fit_selection': self.set_size_fit_image,
+            'save_mask': self.handle_save_mask,
+            'forget_mask': self.handle_forget_mask,
+            'toggle_paint_using_left_click': self.toggle_should_swap_buttons,
+        }
 
-        self.decrease_size_shortcut = QShortcut(QKeySequence(shortcuts['decrease_size']), self)
-        self.decrease_size_shortcut.activated.connect(self.handle_decrease_size_button)
+        for name, function in shortcut_function_map.items():
+            shortcut = QShortcut(QKeySequence(shortcuts[name]), self)
+            shortcut.activated.connect(self.update_and(function))
 
-        self.increase_size_shortcut = QShortcut(QKeySequence(shortcuts['increase_size']), self)
-        self.increase_size_shortcut.activated.connect(self.handle_increase_size_button)
-
-        self.export_shortcut = QShortcut(QKeySequence(shortcuts['export']), self)
-        self.export_shortcut.activated.connect(self.handle_export_button)
-
-        self.reimagine_shortcut = QShortcut(QKeySequence(shortcuts['reimagine']), self)
-        self.reimagine_shortcut.activated.connect(self.handle_reimagine_button)
-
-        self.inpaint_shortcut = QShortcut(QKeySequence(shortcuts['inpaint']), self)
-        self.inpaint_shortcut.activated.connect(self.handle_inpaint_button)
-
-        self.generate_shortcut = QShortcut(QKeySequence(shortcuts['generate']), self)
-        self.generate_shortcut.activated.connect(self.handle_generate_button)
-
-        self.select_color_shortcut = QShortcut(QKeySequence(shortcuts['select_color']), self)
-        self.select_color_shortcut.activated.connect(self.handle_select_color_button)
-
-        self.undo_shortcut = QShortcut(QKeySequence(shortcuts['undo']), self)
-        self.redo_shortcut = QShortcut(QKeySequence(shortcuts['redo']), self)
-        self.undo_shortcut.activated.connect(self.update_and(self.undo))
-        self.redo_shortcut.activated.connect(self.update_and(self.redo))
-
-        self.open_shortcut = QShortcut(QKeySequence(shortcuts['open']), self)
-        self.open_shortcut.activated.connect(self.update_and(self.handle_load_image_button))
-
-        self.toggle_scratchpad_shortcut = QShortcut(QKeySequence(shortcuts['toggle_scratchpad']), self)
-        self.toggle_scratchpad_shortcut.activated.connect(self.update_and(self.handle_show_scratchpad))
-
-        self.quicksave_shortcut = QShortcut(QKeySequence(shortcuts['quicksave']), self)
-        self.quicksave_shortcut.activated.connect(self.update_and(self.handle_quicksave_button))
-
-        self.quickload_shortcut = QShortcut(QKeySequence(shortcuts['quickload']), self)
-        self.quickload_shortcut.activated.connect(self.update_and(self.handle_quickload_button))
-
-        self.toggle_preview_shortcut = QShortcut(QKeySequence(shortcuts['toggle_preview']), self)
-        self.toggle_preview_shortcut.activated.connect(self.update_and(self.toggle_should_preview_scratchpad))
-
-        self.autofill_shortcut = QShortcut(QKeySequence(shortcuts['autofill_selection']), self)
-        self.autofill_shortcut.activated.connect(self.update_and(self.handle_autofill))
-
-        self.small_selection_shortcut = QShortcut(QKeySequence(shortcuts['small_selection']), self)
-        self.small_selection_shortcut.activated.connect(self.update_and(self.set_size_small))
-
-        self.medium_selection_shortcut = QShortcut(QKeySequence(shortcuts['medium_selection']), self)
-        self.medium_selection_shortcut.activated.connect(self.update_and(self.set_size_medium))
-
-        self.large_selection_shortcut = QShortcut(QKeySequence(shortcuts['large_selection']), self)
-        self.large_selection_shortcut.activated.connect(self.update_and(self.set_size_large))
-
-        self.max_selection_shortcut = QShortcut(QKeySequence(shortcuts['fit_selection']), self)
-        self.max_selection_shortcut.activated.connect(self.update_and(self.set_size_fit_image))
-
-        self.save_mask_shortcut = QShortcut(QKeySequence(shortcuts['save_mask']), self)
-        self.save_mask_shortcut.activated.connect(self.update_and(self.handle_save_mask))
-
-        self.forget_mask_shortcut = QShortcut(QKeySequence(shortcuts['forget_mask']), self)
-        self.forget_mask_shortcut.activated.connect(self.update_and(self.handle_forget_mask))
-
-        self.toggle_paint_shortcut = QShortcut(QKeySequence(shortcuts['toggle_paint_using_left_click']), self)
-        self.toggle_paint_shortcut.activated.connect(self.update_and(self.toggle_should_swap_buttons))
 
     def inc_window_scale(self):
         self.window_scale *= 1.1

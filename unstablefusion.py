@@ -123,6 +123,10 @@ shortcuts_ = {
     'paste_from_scratchpad': 'p',
     'toggle_preview': 'T',
     'autofill_selection': 'F',
+    "small_selection": "1",
+    "medium_selection": "2",
+    "large_selection": "3",
+    "fit_image": "0"
 }
 
 def get_shortcut_dict():
@@ -378,6 +382,18 @@ class PaintWidget(QWidget):
 
         self.autofill_shortcut = QShortcut(QKeySequence(shortcuts['autofill_selection']), self)
         self.autofill_shortcut.activated.connect(self.update_and(self.handle_autofill))
+
+        self.small_selection_shortcut = QShortcut(QKeySequence(shortcuts['small_selection']), self)
+        self.small_selection_shortcut.activated.connect(self.update_and(self.set_size_small))
+
+        self.medium_selection_shortcut = QShortcut(QKeySequence(shortcuts['medium_selection']), self)
+        self.medium_selection_shortcut.activated.connect(self.update_and(self.set_size_medium))
+
+        self.large_selection_shortcut = QShortcut(QKeySequence(shortcuts['large_selection']), self)
+        self.large_selection_shortcut.activated.connect(self.update_and(self.set_size_large))
+
+        self.max_selection_shortcut = QShortcut(QKeySequence(shortcuts['fit_selection']), self)
+        self.max_selection_shortcut.activated.connect(self.update_and(self.set_size_fit_image))
         
         self.prompt_textarea = prompt_textarea_
         self.modifiers_textarea = modifiers_textarea_
@@ -626,6 +642,24 @@ class PaintWidget(QWidget):
             self.np_image[image_rect.top():image_rect.bottom(), image_rect.left():image_rect.right(), :]
         return result
 
+    def set_size_small(self):
+        self.selection_rectangle_size = (2, 2)
+        self.update_selection_rectangle()
+
+    def set_size_medium(self):
+        self.selection_rectangle_size = (128, 128)
+        self.update_selection_rectangle()
+    
+    def set_size_large(self):
+        self.selection_rectangle_size = (512, 512)
+        self.update_selection_rectangle()
+    
+    def set_size_fit_image(self):
+        size = max(self.np_image.shape[0], self.np_image.shape[1])
+        self.selection_rectangle_size = (size, size)
+        self.selection_rectangle = QRect(0, 0, size, size)
+        self.update_selection_rectangle()
+
     def increase_image_size(self):
         H = SIZE_INCREASE_INCREMENT // 2
         new_image = np.zeros((self.np_image.shape[0] + SIZE_INCREASE_INCREMENT, self.np_image.shape[1] + SIZE_INCREASE_INCREMENT, 4), dtype=np.uint8)
@@ -705,14 +739,14 @@ class PaintWidget(QWidget):
             painter.setBrush(prev_brush)
             painter.drawImage(self.image_to_window_rect(self.image_rect), self.qt_image)
 
-        if self.saved_mask_state:
-            painter.setPen(QPen(Qt.blue,  1, Qt.DashLine))
-            painter.drawRect(self.image_to_window_rect(self.saved_mask_state.box))
 
         if self.selection_rectangle != None:
             # painter.setBrush(redbrush)
             painter.setPen(QPen(Qt.red,  1, Qt.SolidLine))
             painter.drawRect(self.image_to_window_rect(self.selection_rectangle))
+        if self.saved_mask_state:
+            painter.setPen(QPen(Qt.blue,  1, Qt.DashLine))
+            painter.drawRect(self.image_to_window_rect(self.saved_mask_state.box))
 
         if not (self.preview_image is None):
             painter.drawImage(self.image_to_window_rect(self.selection_rectangle), qimage_from_array(self.preview_image))

@@ -13,5 +13,9 @@
     "decrease_size": "-",
     "paste_from_scratchpad": "P",
     "toggle_preview": "T",
-    "autofill_selection": "F"
+    "autofill_selection": "F",
+    "small_selection": "1",
+    "medium_selection": "2",
+    "large_selection": "3",
+    "fit_selection": "0"
 }

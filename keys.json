@@ -19,5 +19,6 @@
     "large_selection": "3",
     "fit_selection": "0",
     "save_mask": "Q",
-    "forget_mask": "Shift+Q"
+    "forget_mask": "Shift+Q",
+    "toggle_paint_using_left_click": "E"
 }

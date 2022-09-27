@@ -129,6 +129,7 @@ shortcuts_ = {
     "fit_image": "0",
     "save_mask": "Q",
     "forget_mask": "Shift+Q",
+    "toggle_paint_using_left_click": "E",
 }
 
 def get_shortcut_dict():
@@ -269,12 +270,6 @@ class StableDiffusionManager:
         self.mode_widget = None
         self.huggingface_token_widget = None
         self.server_address_widget = None
-    
-    def disable_safety(self):
-        if self.cached_local_handler != None:
-            self.cached_local_handler.img2img.safety_checker = dummy_safety_checker
-            self.cached_local_handler.text2img.safety_checker = dummy_safety_checker
-            self.cached_local_handler.inpainter.safety_checker = dummy_safety_checker
 
     def get_local_handler(self, token=True):
         if self.cached_local_handler == None:
@@ -337,6 +332,18 @@ class PaintWidget(QWidget):
 
         self.saved_mask_state = None
 
+        
+        self.add_shortcuts()
+
+        self.prompt_textarea = prompt_textarea_
+        self.modifiers_textarea = modifiers_textarea_
+        self.stable_diffusion_manager = stable_diffusion_manager_
+        self.preview_image = None
+
+        self.color_pushbutton = None
+        self.paint_checkbox = None
+    
+    def add_shortcuts(self):
         shortcuts = get_shortcut_dict()
         self.paste_shortcut = QShortcut(QKeySequence(shortcuts['paste_from_scratchpad']), self)
         self.paste_shortcut.activated.connect(self.handle_paste_scratchpad)
@@ -402,12 +409,10 @@ class PaintWidget(QWidget):
 
         self.forget_mask_shortcut = QShortcut(QKeySequence(shortcuts['forget_mask']), self)
         self.forget_mask_shortcut.activated.connect(self.update_and(self.handle_forget_mask))
-        
-        self.prompt_textarea = prompt_textarea_
-        self.modifiers_textarea = modifiers_textarea_
-        self.stable_diffusion_manager = stable_diffusion_manager_
-        self.preview_image = None
-    
+
+        self.toggle_paint_shortcut = QShortcut(QKeySequence(shortcuts['toggle_paint_using_left_click']), self)
+        self.toggle_paint_shortcut.activated.connect(self.update_and(self.toggle_should_swap_buttons))
+
     def inc_window_scale(self):
         self.window_scale *= 1.1
 
@@ -423,8 +428,14 @@ class PaintWidget(QWidget):
     def toggle_should_preview_scratchpad(self):
         self.set_should_preview_scratchpad(not self.should_preview_scratchpad)
 
+    def toggle_should_swap_buttons(self):
+        self.set_should_swap_buttons(not self.shoulds_swap_buttons)
+
     def set_should_swap_buttons(self, val):
         self.shoulds_swap_buttons = val
+
+        if self.paint_checkbox:
+            self.paint_checkbox.setChecked(val)
 
     def get_handler(self):
         return self.stable_diffusion_manager.get_handler()
@@ -470,6 +481,8 @@ class PaintWidget(QWidget):
     
     def set_color(self, new_color):
         self.color = np.array([new_color.red(), new_color.green(), new_color.blue()])
+        if self.color_pushbutton:
+            self.color_pushbutton.setStyleSheet("background-color: rgb(%d, %d, %d)" % (self.color[0], self.color[1], self.color[2]))
 
     def undo(self):
         if len(self.history) > 0:
@@ -1362,7 +1375,6 @@ if __name__ == '__main__':
     box_size_limit_checkbox.stateChanged.connect(box_size_limit_callback)
     swap_buttons_checkbox.stateChanged.connect(swap_buttons_callback)
 
-    disable_safety_button = QPushButton('Disable Safety Checker')
     
     def handle_autofill():
         widget.handle_autofill()
@@ -1413,14 +1425,11 @@ if __name__ == '__main__':
     tools_layout.addWidget(run_groupbox)
     tools_layout.addWidget(save_groupbox)
     tools_layout.addWidget(scratchpad_container)
-    # tools_layout.addWidget(disable_safety_button)
     tools_layout.addWidget(support_container)
     tools_widget.setLayout(tools_layout)
 
     scroll_area.setWidget(tools_widget)
 
-    def handle_disable_safety():
-        stbale_diffusion_manager.disable_safety()
 
     load_image_button.clicked.connect(lambda : widget.handle_load_image_button())
     erase_button.clicked.connect(lambda : widget.handle_erase_button())
@@ -1441,9 +1450,11 @@ if __name__ == '__main__':
     coffee_button.clicked.connect(lambda : handle_coffee_button())
     twitter_button.clicked.connect(lambda : handle_twitter_button())
     github_button.clicked.connect(lambda : handle_github_button())
-    disable_safety_button.clicked.connect(lambda : handle_disable_safety())
     save_mask_button.clicked.connect(lambda : widget.handle_save_mask())
     forget_mask_button.clicked.connect(lambda : widget.handle_forget_mask())
+
+    widget.color_pushbutton = select_color_button
+    widget.paint_checkbox = swap_buttons_checkbox
 
     def seed_change_function(val):
         try:

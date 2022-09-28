@@ -140,6 +140,7 @@ shortcuts_ = {
     "save_mask": "Q",
     "forget_mask": "Shift+Q",
     "toggle_paint_using_left_click": "E",
+    "pick_color": "Shift+C",
 }
 
 def get_shortcut_dict():
@@ -356,6 +357,15 @@ class PaintWidget(QWidget):
         self.smooth_inpaint_checkbox = None
 
     
+    def handle_pick_color(self):
+        image = self.get_selection_np_image()
+        if not (image is None):
+            mean_color_np = image.mean(axis=(0, 1))
+            mean_color = QColor(mean_color_np[0], mean_color_np[1], mean_color_np[2])
+        else:
+            QColor(0, 0, 0)
+        self.set_color(mean_color)
+
     def should_inpaint_smoothly(self):
         if self.smooth_inpaint_checkbox:
             return self.smooth_inpaint_checkbox.isChecked()
@@ -388,6 +398,7 @@ class PaintWidget(QWidget):
             'save_mask': self.handle_save_mask,
             'forget_mask': self.handle_forget_mask,
             'toggle_paint_using_left_click': self.toggle_should_swap_buttons,
+            'pick_color': self.handle_pick_color,
         }
 
         for name, function in shortcut_function_map.items():
@@ -1180,8 +1191,10 @@ if __name__ == '__main__':
     paint_widgets_layout = QHBoxLayout()
     paint_button = QPushButton('Paint')
     select_color_button = QPushButton('Select Color')
+    pick_color_button = QPushButton('Pick Color')
     paint_widgets_layout.addWidget(erase_button)
     paint_widgets_layout.addWidget(paint_button)
+    paint_widgets_layout.addWidget(pick_color_button)
     paint_widgets_layout.addWidget(select_color_button)
     paint_widgets_container.setLayout(paint_widgets_layout)
 
@@ -1479,6 +1492,7 @@ if __name__ == '__main__':
     quickload_button.clicked.connect(lambda : widget.handle_quickload_button())
     export_button.clicked.connect(lambda : widget.handle_export_button())
     select_color_button.clicked.connect(lambda : widget.handle_select_color_button( select_color_button))
+    pick_color_button.clicked.connect(lambda : widget.handle_pick_color())
     paint_button.clicked.connect(lambda : widget.handle_paint_button())
     increase_size_button.clicked.connect(lambda : widget.handle_increase_size_button())
     decrease_size_button.clicked.connect(lambda : widget.handle_decrease_size_button())

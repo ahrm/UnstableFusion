@@ -20,5 +20,6 @@
     "fit_selection": "0",
     "save_mask": "Q",
     "forget_mask": "Shift+Q",
-    "toggle_paint_using_left_click": "E"
+    "toggle_paint_using_left_click": "E",
+    "pick_color": "Shift+C"
 }

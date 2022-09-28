@@ -25,6 +25,16 @@ from dataclasses import dataclass
 
 SIZE_INCREASE_INCREMENT = 20
 
+
+def smoothen_mask(original_mask):
+    new_mask = (1 - original_mask).copy().astype(np.float32)
+    for i in range(10):
+        K = min(original_mask.shape[0] // 3, 30)
+        new_mask = cv2.blur(new_mask, (K, K))
+        new_mask[original_mask == 1] = 0
+    new_mask = np.clip(new_mask * 2, 0, 1)
+    return 1 - new_mask.astype(np.uint8)
+
 def cv2_telea(img, mask):
     ret = cv2.inpaint(img, 255 - mask, 5, cv2.INPAINT_TELEA)
     return ret, mask
@@ -342,7 +352,15 @@ class PaintWidget(QWidget):
 
         self.color_pushbutton = None
         self.paint_checkbox = None
+        self.smooth_inpaint_checkbox = None
+
     
+    def should_inpaint_smoothly(self):
+        if self.smooth_inpaint_checkbox:
+            return self.smooth_inpaint_checkbox.isChecked()
+        else:
+            return False
+
     def add_shortcuts(self):
         shortcuts = get_shortcut_dict()
         shortcut_function_map = {
@@ -603,10 +621,12 @@ class PaintWidget(QWidget):
             else:
                 patch_alpha = np.ones((patch_np.shape[0], patch_np.shape[1])).astype(np.uint8) * 255
 
-            new_image[image_rect.top():image_rect.top() + patch_np.shape[0], image_rect.left():image_rect.left()+patch_np.shape[1], :][patch_alpha > 128] = \
-                np.concatenate(
-                    [patch_np, patch_alpha[:, :, None]],
-                axis=-1)[patch_alpha > 128]
+            index = (slice(image_rect.top(), image_rect.top() + patch_np.shape[0]), slice(image_rect.left(),image_rect.left()+patch_np.shape[1]), slice(None, None, None))
+            new_patch = np.concatenate([patch_np, patch_alpha[:, :, None]], axis=-1)
+
+            new_image[index][patch_alpha > 128] = new_patch[patch_alpha > 128]
+            
+            
             self.set_np_image(new_image)
 
 
@@ -838,6 +858,18 @@ class PaintWidget(QWidget):
 
             # add mask as alpha channel
             # inpainted_image = np.concatenate([inpainted_image, mask[:, :, np.newaxis]], axis=2)
+
+            if self.should_inpaint_smoothly():
+                patch_alpha = mask.astype(np.float32) / 255
+                patch_alpha[:, 0] = 0
+                patch_alpha[:, -1] = 0
+                patch_alpha[0, :] = 0
+                patch_alpha[-1, :] = 0
+
+                patch_alpha = smoothen_mask(patch_alpha)
+                patch_alpha = np.stack([patch_alpha] * 3, axis=2)
+                inpainted_image = (inpainted_image * patch_alpha + image * (1-patch_alpha)).astype(np.uint8)
+
             self.set_selection_image(inpainted_image)
             self.update()
         except:
@@ -1257,9 +1289,11 @@ if __name__ == '__main__':
         inpaint_options,
         select_callback=inpaint_change_callback)
 
+    smooth_inpaint_checkbox = QCheckBox('Smooth Inpaint')
     inpaint_container = QWidget()
     inpaint_layout = QHBoxLayout()
     inpaint_layout.addWidget(inpaint_selector_container)
+    inpaint_layout.addWidget(smooth_inpaint_checkbox)
     inpaint_layout.addWidget(inpaint_button)
     inpaint_container.setLayout(inpaint_layout)
 
@@ -1418,6 +1452,7 @@ if __name__ == '__main__':
 
     widget.color_pushbutton = select_color_button
     widget.paint_checkbox = swap_buttons_checkbox
+    widget.smooth_inpaint_checkbox = smooth_inpaint_checkbox
 
     def seed_change_function(val):
         try:

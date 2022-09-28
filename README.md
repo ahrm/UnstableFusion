@@ -9,7 +9,7 @@ https://user-images.githubusercontent.com/6392321/191858568-0550f52d-e89c-4b37-a
 
 Note that if you want to run StableDiffusion on Windows locally, use requirements-localgpu-win64.txt
 ```
-pip -r requirements-localgpu-win64.txt
+pip install -r requirements-localgpu-win64.txt
 ```
 
 Note: On linux, if you encounter `Could not load the Qt platform plugin "xcb"` error, run this:

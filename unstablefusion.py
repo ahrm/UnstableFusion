@@ -972,7 +972,7 @@ class PaintWidget(QWidget):
                 self.scratchpad.show()
 
     def handle_paste_scratchpad(self):
-        if not (self.scratchpad.np_image is None):
+        if not (self.scratchpad.np_image is None) and not (self.scratchpad.selection_rectangle is None):
             resized = np.array(
                 Image.fromarray(
                     self.scratchpad.get_selection_np_image()).resize(

@@ -135,7 +135,6 @@ def get_most_recent_saved_file():
             most_recent = mtime
             most_recent_path = path
     return most_recent_path
-        
 
 def quicksave_image(np_image, file_path=None):
     if file_path == None:
@@ -176,8 +175,6 @@ def hbox(*args):
     container.setLayout(layout)
     return container
 
-
-
 def qimage_from_array(arr):
     maximum = arr.max()
     if arr.shape[-1] != 4:
@@ -187,7 +184,6 @@ def qimage_from_array(arr):
         return  QImage((arr.astype('uint8') * 255).data, arr.shape[1], arr.shape[0], QImage.Format_RGBA8888)
     else:
         return  QImage(arr.astype('uint8').data, arr.shape[1], arr.shape[0], QImage.Format_RGBA8888)
-
 
 class DummyStableDiffusionHandler:
 
@@ -335,50 +331,37 @@ class PaintWidget(QWidget):
         self.is_dragging = False
         self.image_rect = None
         self.window_scale = 1
-
         self.strength = 0.75
         self.steps = 50
         self.guidance_scale = 7.5
         self.seed = -1
-
         self.should_preview_scratchpad = False
-
         self.inpaint_method = inpaint_options[0]
-
         self.history = []
         self.future = []
         self.color = np.array([0, 0, 0])
-
-        self.setAcceptDrops(True)
         self.scratchpad = None
         self.owner = None
-
         self.should_limit_box_size = True
         self.shoulds_swap_buttons = False
-
         self.saved_mask_state = None
         self.brush = 'square'
-
-        
-        self.add_shortcuts()
-
         self.prompt_textarea = prompt_textarea_
         self.modifiers_textarea = modifiers_textarea_
         self.stable_diffusion_manager = stable_diffusion_manager_
         self.preview_image = None
-
         self.color_pushbutton = None
         self.paint_checkbox = None
         self.smooth_inpaint_checkbox = None
 
+        self.setAcceptDrops(True)
+        self.add_shortcuts()
+
     
     def handle_pick_color(self):
         image = self.get_selection_np_image()
-        if not (image is None):
-            mean_color_np = image.mean(axis=(0, 1))
-            mean_color = QColor(mean_color_np[0], mean_color_np[1], mean_color_np[2])
-        else:
-            QColor(0, 0, 0)
+        mean_color_np = image.mean(axis=(0, 1))
+        mean_color = QColor(mean_color_np[0], mean_color_np[1], mean_color_np[2])
         self.set_color(mean_color)
 
     def should_inpaint_smoothly(self):
@@ -560,8 +543,6 @@ class PaintWidget(QWidget):
             delta = -1
         delta *= max(1, int(self.selection_rectangle_size[0] / 10))
 
-
-
         if QApplication.keyboardModifiers() & Qt.ControlModifier:
             if delta > 0:
                 self.inc_window_scale()
@@ -625,27 +606,33 @@ class PaintWidget(QWidget):
             image_rect.setBottom(self.qt_image.height())
         return image_rect, source_rect
 
+    def get_selection_index(self):
+        image_rect = self.clone_rect(self.selection_rectangle)
+        image_rect, source_rect = self.crop_image_rect(image_rect)
+        return (slice(image_rect.top(), image_rect.bottom()), slice(image_rect.left(), image_rect.right())),\
+                (slice(source_rect.top(), source_rect.bottom()), slice(source_rect.left(), source_rect.right()))
+
     def paint_selection(self, add_to_history=True):
         if self.selection_rectangle != None:
-            image_rect = self.clone_rect(self.selection_rectangle)
-            image_rect, source_rect = self.crop_image_rect(image_rect)
+            image_index, _ = self.get_selection_index()
+
             new_image = self.np_image.copy()
-            new_image[image_rect.top():image_rect.bottom(), image_rect.left():image_rect.right(), :3] = self.color
-            new_image[image_rect.top():image_rect.bottom(), image_rect.left():image_rect.right(), 3] = 255
+            new_image[(*image_index, slice(None, 3))] = self.color
+            new_image[(*image_index, 3)] = 255
             brush = self.get_brush()
+
             if not brush is None:
-                index = (slice(image_rect.top(), image_rect.bottom()), slice(image_rect.left(), image_rect.right()), slice(0, 4))
+                index = (*image_index, slice(0, 4))
                 mask = np.stack([brush, brush, brush, brush], axis=2)
-                mask_index = (slice(source_rect.top(), source_rect.bottom()), slice(source_rect.left(), source_rect.right()), slice(0, 4))
                 new_image[index] = mask * self.np_image[index] + (1 - mask) * new_image[index]
-                # new_image[index] = self.np_image[index]
+
             self.set_np_image(new_image, add_to_history=add_to_history)
 
     def get_brush(self):
-        image_rect, source_rect = self.crop_image_rect(self.clone_rect(self.selection_rectangle))
+        _, index = self.get_selection_index()
+
         width = self.selection_rectangle.width()-1
         height = self.selection_rectangle.height()-1
-        index = (slice(source_rect.top(), source_rect.bottom()), slice(source_rect.left(), source_rect.right()))
 
         if self.brush == 'circle':
             brush = np.ones((width, height))
@@ -657,17 +644,15 @@ class PaintWidget(QWidget):
 
     def erase_selection(self, add_to_history=True):
         if self.selection_rectangle != None:
-            image_rect = self.clone_rect(self.selection_rectangle)
-            image_rect, source_rect = self.crop_image_rect(image_rect)
+            image_index, _ = self.get_selection_index()
+            index = (*image_index, slice(None, None))
+
             new_image = self.np_image.copy()
             brush = self.get_brush()
-            if brush is None:
-                new_image[image_rect.top():image_rect.bottom(), image_rect.left():image_rect.right(), :] = 0
-                self.set_np_image(new_image, add_to_history=add_to_history)
-            else:
-                mask = np.stack([brush, brush, brush, brush], axis=2)
-                new_image[image_rect.top():image_rect.bottom(), image_rect.left():image_rect.right(), :] = (new_image[image_rect.top():image_rect.bottom(), image_rect.left():image_rect.right(), :] * mask).astype(np.uint8)
-                self.set_np_image(new_image, add_to_history=add_to_history)
+
+            mask = np.stack([brush, brush, brush, brush], axis=2)
+            new_image[index] = (new_image[index] * mask).astype(np.uint8)
+            self.set_np_image(new_image, add_to_history=add_to_history)
     
 
     def set_selection_image(self, patch_image):

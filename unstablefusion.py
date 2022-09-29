@@ -551,16 +551,20 @@ class PaintWidget(QWidget):
     def update_selection_rectangle(self):
         if self.selection_rectangle != None:
             center = self.selection_rectangle.center()
-            self.selection_rectangle = QRect(int(center.x() - self.selection_rectangle_size[0] / 2), int(center.y(
-            ) - self.selection_rectangle_size[1] / 2), int(self.selection_rectangle_size[0]), int(self.selection_rectangle_size[1]))
+            center = QPoint(center.x()+1, center.y()+1)
+            x_offset = self.selection_rectangle_size[0] - self.selection_rectangle_size[0] // 2
+            y_offset = self.selection_rectangle_size[1] - self.selection_rectangle_size[1] // 2
+
+            self.selection_rectangle = QRect(int(center.x() - x_offset), int(center.y(
+            ) - y_offset), int(self.selection_rectangle_size[0]), int(self.selection_rectangle_size[1]))
 
     def wheelEvent(self, e):
         delta = 1
         if e.angleDelta().y() < 0:
             delta = -1
-        delta *= max(1, self.selection_rectangle_size[0] / 10)
+        delta *= max(1, int(self.selection_rectangle_size[0] / 10))
 
-        self.selection_rectangle_size = [self.selection_rectangle_size[0] + delta, self.selection_rectangle_size[1] + delta]
+
 
         if QApplication.keyboardModifiers() & Qt.ControlModifier:
             if delta > 0:
@@ -571,6 +575,7 @@ class PaintWidget(QWidget):
             self.update()
             return
 
+        self.selection_rectangle_size = [self.selection_rectangle_size[0] + delta, self.selection_rectangle_size[1] + delta]
         if self.selection_rectangle_size[0] <= 0:
             self.selection_rectangle_size[0] = 1
         if self.selection_rectangle_size[1] <= 0:

@@ -144,8 +144,6 @@ def quicksave_image(np_image, file_path=None):
     Image.fromarray(np_image).save(file_path)
     return file_path
 
-
-
 def get_shortcut_dict():
     parent_path = pathlib.Path(__file__).parents[0]
     file_path = parent_path / 'keys.json'
@@ -179,7 +177,6 @@ def hbox(*args):
     return container
 
 
-testtexture = get_texture()
 
 def qimage_from_array(arr):
     maximum = arr.max()
@@ -191,7 +188,6 @@ def qimage_from_array(arr):
     else:
         return  QImage(arr.astype('uint8').data, arr.shape[1], arr.shape[0], QImage.Format_RGBA8888)
 
-testimage = qimage_from_array(testtexture)
 
 class DummyStableDiffusionHandler:
 
@@ -1477,11 +1473,13 @@ if __name__ == '__main__':
     seed_text.textChanged.connect(seed_change_function)
     seed_reset_button.clicked.connect(lambda : seed_text.setText('-1'))
 
+    initial_texture = get_texture()
+
     widget.setWindowTitle('UnstableFusion')
     scratchpad.setWindowTitle('Scratchpad')
     tools_widget.setWindowTitle('Tools')
-    widget.set_np_image(testtexture)
-    scratchpad.set_np_image(testtexture)
+    widget.set_np_image(initial_texture)
+    scratchpad.set_np_image(initial_texture)
     widget.resize_to_image()
     widget.show()
     # tools_widget.show()

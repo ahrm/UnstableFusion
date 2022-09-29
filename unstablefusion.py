@@ -24,7 +24,62 @@ import random
 from dataclasses import dataclass
 
 SIZE_INCREASE_INCREMENT = 20
+brush_options = ['square', 'circle']
 
+inpaint_options = ['cv2_ns',
+         'cv2_telea',
+         'gaussian']
+        
+def cv2_telea(img, mask):
+    ret = cv2.inpaint(img, 255 - mask, 5, cv2.INPAINT_TELEA)
+    return ret, mask
+
+
+def cv2_ns(img, mask):
+    ret = cv2.inpaint(img, 255 - mask, 5, cv2.INPAINT_NS)
+    return ret, mask
+
+def gaussian_noise(img, mask):
+    noise = np.random.randn(mask.shape[0], mask.shape[1], 3)
+    noise = (noise + 1) / 2 * 255
+    noise = noise.astype(np.uint8)
+    nmask = mask.copy()
+    nmask[mask > 0] = 1
+    img = nmask[:, :, np.newaxis] * img + (1 - nmask[:, :, np.newaxis]) * noise
+    return img, mask
+
+inpaint_functions = {
+    'cv2_ns': cv2_ns,
+    'cv2_telea': cv2_telea,
+    'gaussian': gaussian_noise
+}
+
+shortcuts_ = {
+    'undo': 'Ctrl+Z',
+    'redo': 'Ctrl+Shift+Z',
+    'open': 'O',
+    'toggle_scratchpad': 'S',
+    'quicksave': 'F5',
+    'quickload': 'F9',
+    'select_color': 'C',
+    'generate': 'Return',
+    'inpaint': 'Space',
+    'reimagine': 'R',
+    'export': 'Ctrl+S',
+    'increase_size': '+',
+    'decrease_size': '-',
+    'paste_from_scratchpad': 'p',
+    'toggle_preview': 'T',
+    'autofill_selection': 'F',
+    "small_selection": "1",
+    "medium_selection": "2",
+    "large_selection": "3",
+    "fit_image": "0",
+    "save_mask": "Q",
+    "forget_mask": "Shift+Q",
+    "toggle_paint_using_left_click": "E",
+    "pick_color": "Shift+C",
+}
 
 def smoothen_mask(original_mask):
     new_mask = (1 - original_mask).copy().astype(np.float32)
@@ -35,14 +90,6 @@ def smoothen_mask(original_mask):
     new_mask = np.clip(new_mask * 2, 0, 1)
     return 1 - new_mask.astype(np.uint8)
 
-def cv2_telea(img, mask):
-    ret = cv2.inpaint(img, 255 - mask, 5, cv2.INPAINT_TELEA)
-    return ret, mask
-
-
-def cv2_ns(img, mask):
-    ret = cv2.inpaint(img, 255 - mask, 5, cv2.INPAINT_NS)
-    return ret, mask
 
 def get_quicksave_path():
     parent_path = pathlib.Path(__file__).parents[0]
@@ -97,51 +144,7 @@ def quicksave_image(np_image, file_path=None):
     Image.fromarray(np_image).save(file_path)
     return file_path
 
-def gaussian_noise(img, mask):
-    noise = np.random.randn(mask.shape[0], mask.shape[1], 3)
-    noise = (noise + 1) / 2 * 255
-    noise = noise.astype(np.uint8)
-    nmask = mask.copy()
-    nmask[mask > 0] = 1
-    img = nmask[:, :, np.newaxis] * img + (1 - nmask[:, :, np.newaxis]) * noise
-    return img, mask
 
-inpaint_options = ['cv2_ns',
-         'cv2_telea',
-         'gaussian']
-        
-inpaint_functions = {
-    'cv2_ns': cv2_ns,
-    'cv2_telea': cv2_telea,
-    'gaussian': gaussian_noise
-}
-
-shortcuts_ = {
-    'undo': 'Ctrl+Z',
-    'redo': 'Ctrl+Shift+Z',
-    'open': 'O',
-    'toggle_scratchpad': 'S',
-    'quicksave': 'F5',
-    'quickload': 'F9',
-    'select_color': 'C',
-    'generate': 'Return',
-    'inpaint': 'Space',
-    'reimagine': 'R',
-    'export': 'Ctrl+S',
-    'increase_size': '+',
-    'decrease_size': '-',
-    'paste_from_scratchpad': 'p',
-    'toggle_preview': 'T',
-    'autofill_selection': 'F',
-    "small_selection": "1",
-    "medium_selection": "2",
-    "large_selection": "3",
-    "fit_image": "0",
-    "save_mask": "Q",
-    "forget_mask": "Shift+Q",
-    "toggle_paint_using_left_click": "E",
-    "pick_color": "Shift+C",
-}
 
 def get_shortcut_dict():
     parent_path = pathlib.Path(__file__).parents[0]
@@ -158,6 +161,22 @@ def get_texture():
     SIZE = 512
     Z = np.zeros((SIZE, SIZE), dtype=np.uint8)
     return np.stack([Z, Z, Z, Z], axis=2)
+
+def hbox(*args):
+
+    container = QWidget()
+    layout = QHBoxLayout()
+    
+    for arg in args:
+        if type(arg) == tuple:
+            label = QLabel(arg[0])
+            layout.addWidget(label)
+            layout.addWidget(arg[1])
+        else:
+            layout.addWidget(arg)
+    
+    container.setLayout(layout)
+    return container
 
 
 testtexture = get_texture()
@@ -1168,72 +1187,41 @@ if __name__ == '__main__':
     run_groupbox_layout = QVBoxLayout()
     save_groupbox_layout = QVBoxLayout()
 
-    huggingface_token_container = QWidget()
-    huggingface_token_layout = QHBoxLayout()
-    huggingface_token_label = QLabel('Huggingface Token')
-    huggingface_token_text_field = QLineEdit()
-    huggingface_token_open_button = QPushButton('Open Token Page')
-    huggingface_token_layout.addWidget(huggingface_token_label)
-    huggingface_token_layout.addWidget(huggingface_token_text_field)
-    huggingface_token_layout.addWidget(huggingface_token_open_button)
-    huggingface_token_container.setLayout(huggingface_token_layout)
-
-    huggingface_token_text_field.setEchoMode(QLineEdit.Password)
-
-    huggingface_token_open_button.clicked.connect(handle_huggingface_button)
-
-
     tools_widget = QWidget()
     tools_layout = QVBoxLayout()
+
+    huggingface_token_text_field = QLineEdit()
+    huggingface_token_text_field.setEchoMode(QLineEdit.Password)
+    huggingface_token_open_button = QPushButton('Open Token Page')
+    huggingface_token_container = hbox(('Huggingface Token', huggingface_token_text_field), huggingface_token_open_button)
+
     load_image_button = QPushButton('Load Image')
+
+    increase_size_button = QPushButton('Increase Size')
+    decrease_size_button = QPushButton('Decrease Size')
+    increase_size_container = hbox(increase_size_button, decrease_size_button)
+
     erase_button = QPushButton('Erase')
-    paint_widgets_container = QWidget()
-    paint_widgets_layout = QHBoxLayout()
     paint_button = QPushButton('Paint')
     select_color_button = QPushButton('Select Color')
     pick_color_button = QPushButton('Pick Color')
-    paint_widgets_layout.addWidget(erase_button)
-    paint_widgets_layout.addWidget(paint_button)
-    paint_widgets_layout.addWidget(pick_color_button)
-    paint_widgets_layout.addWidget(select_color_button)
-    paint_widgets_container.setLayout(paint_widgets_layout)
+    paint_widgets_container = hbox(erase_button, paint_button, pick_color_button, select_color_button)
 
-    increase_size_container = QWidget()
-    increase_size_layout = QHBoxLayout()
-    increase_size_button = QPushButton('Increase Size')
-    decrease_size_button = QPushButton('Decrease Size')
-    increase_size_layout.addWidget(increase_size_button)
-    increase_size_layout.addWidget(decrease_size_button)
-    increase_size_container.setLayout(increase_size_layout)
-
-    seed_container = QWidget()
-    seed_layout = QHBoxLayout()
-    seed_text = QLineEdit()
-    seed_label = QLabel('Seed')
-    seed_text.setText('-1')
-    seed_random_button = QPushButton('🎲')
-    seed_reset_button = QPushButton('↺')
-    seed_layout.addWidget(seed_label)
-    seed_layout.addWidget(seed_text)
-    seed_layout.addWidget(seed_random_button)
-    seed_layout.addWidget(seed_reset_button)
-    seed_container.setLayout(seed_layout)
-
-    def random_seed_buton_handler():
-        seed_text.setText(str(random.randint(0, 1000000)))
-
-    seed_random_button.clicked.connect(random_seed_buton_handler)
-
-    undo_redo_container = QWidget()
-    undo_redo_layout = QHBoxLayout()
     undo_button = QPushButton('Undo')
     redo_button = QPushButton('Redo')
-    undo_redo_layout.addWidget(undo_button)
-    undo_redo_layout.addWidget(redo_button)
-    undo_redo_container.setLayout(undo_redo_layout)
+    undo_redo_container = hbox(undo_button, redo_button)
 
-    reimagine_button = QPushButton('Reimagine')
-    inpaint_button = QPushButton('Inpaint')
+    box_size_limit_checkbox = QCheckBox()
+    box_size_limit_checkbox.setChecked(True)
+    swap_buttons_checkbox = QCheckBox()
+    swap_buttons_checkbox.setChecked(False)
+    brush_select_widget, brush_selector  = create_select_widget('Brush', brush_options)
+    box_size_limit_container = hbox(
+        ('Should limit box size', box_size_limit_checkbox),
+        ('Paint using left click', swap_buttons_checkbox),
+        brush_select_widget)
+
+    fill_button = QPushButton('Autofill')
 
     prompt_textarea = QLineEdit()
     prompt_textarea.setPlaceholderText('Prompt')
@@ -1242,12 +1230,25 @@ if __name__ == '__main__':
     modifiers_textarea.setPlaceholderText('Modifiers')
     modifiers_save_button = QPushButton('Save Modifiers')
     modifiers_load_button = QPushButton('Load Modifiers')
-    modifiers_container = QWidget()
-    modifiers_layout = QHBoxLayout()
-    modifiers_layout.addWidget(modifiers_textarea)
-    modifiers_layout.addWidget(modifiers_save_button)
-    modifiers_layout.addWidget(modifiers_load_button)
-    modifiers_container.setLayout(modifiers_layout)
+    modifiers_container = hbox(modifiers_textarea, modifiers_save_button, modifiers_load_button)
+
+    seed_text = QLineEdit()
+    seed_text.setText('-1')
+    seed_random_button = QPushButton('🎲')
+    seed_reset_button = QPushButton('↺')
+    seed_container = hbox(('Seed', seed_text), seed_random_button, seed_reset_button)
+
+    def random_seed_buton_handler():
+        seed_text.setText(str(random.randint(0, 1000000)))
+
+
+    generate_button = QPushButton('Generate')
+    reimagine_button = QPushButton('Reimagine')
+    inpaint_button = QPushButton('Inpaint')
+    generate_button.setStyleSheet('QPushButton {background: green; color: white;}')
+    inpaint_button.setStyleSheet('QPushButton {background: green; color: white;}')
+    reimagine_button.setStyleSheet('QPushButton {background: green; color: white;}')
+
 
     def handle_save_modifiers():
         mods = modifiers_textarea.text()
@@ -1258,31 +1259,17 @@ if __name__ == '__main__':
         if mods:
             modifiers_textarea.setText(mods)
 
-    modifiers_save_button.clicked.connect(handle_save_modifiers)
-    modifiers_load_button.clicked.connect(handle_load_modifiers)
 
-    generate_button = QPushButton('Generate')
-    save_container = QWidget()
-    save_layout = QHBoxLayout()
     quicksave_button = QPushButton('Quick Save')
     quickload_button = QPushButton('Quick Load')
-    save_layout.addWidget(quicksave_button)
-    save_layout.addWidget(quickload_button)
-    save_container.setLayout(save_layout)
+    save_container = hbox(quicksave_button, quickload_button)
 
-    generate_button.setStyleSheet('QPushButton {background: green; color: white;}')
-    inpaint_button.setStyleSheet('QPushButton {background: green; color: white;}')
-    reimagine_button.setStyleSheet('QPushButton {background: green; color: white;}')
-
-
-    scratchpad_container = QWidget()
-    scratchpad_layout = QHBoxLayout()
     show_scratchpad_button = QPushButton('Show Scratchpad')
     paste_scratchpad_button = QPushButton('Paste From Scratchpad')
-    scratchpad_layout.addWidget(show_scratchpad_button)
-    scratchpad_layout.addWidget(paste_scratchpad_button)
-    scratchpad_container.setLayout(scratchpad_layout)
+    scratchpad_container = hbox(show_scratchpad_button, paste_scratchpad_button)
+
     export_button = QPushButton('Export')
+
     widget = PaintWidget(prompt_textarea, modifiers_textarea, stbale_diffusion_manager)
     scratchpad = PaintWidget(prompt_textarea, modifiers_textarea, stbale_diffusion_manager)
 
@@ -1335,24 +1322,15 @@ if __name__ == '__main__':
         select_callback=inpaint_change_callback)
 
     smooth_inpaint_checkbox = QCheckBox('Smooth Inpaint')
-    inpaint_container = QWidget()
-    inpaint_layout = QHBoxLayout()
-    inpaint_layout.addWidget(inpaint_selector_container)
-    inpaint_layout.addWidget(smooth_inpaint_checkbox)
-    inpaint_layout.addWidget(inpaint_button)
-    inpaint_container.setLayout(inpaint_layout)
+    inpaint_container = hbox(inpaint_selector_container, smooth_inpaint_checkbox, inpaint_button)
 
-    support_container = QWidget()
-    support_layout = QHBoxLayout()
     coffee_button = QPushButton('Buy me a coffee')
     github_button = QPushButton()
     twitter_button = QPushButton()
     github_button.setIcon(github_icon)
     twitter_button.setIcon(twitter_icon)
-    support_layout.addWidget(coffee_button)
-    support_layout.addWidget(github_button)
-    support_layout.addWidget(twitter_button)
-    support_container.setLayout(support_layout)
+
+    support_container = hbox(coffee_button, github_button, twitter_button)
 
     def runtime_change_callback(num):
         if runtime_options[num] == 'local':
@@ -1363,15 +1341,10 @@ if __name__ == '__main__':
     runtime_options = ['local', 'server']
     runtime_select_container, runtime_select_widget = create_select_widget('Runtime', runtime_options, select_callback=runtime_change_callback)
     
-    server_container = QWidget()
-    server_layout = QHBoxLayout()
     server_address_widget = QLineEdit()
     open_colab_widget = QPushButton('Open Colab Notebook')
-    server_layout.addWidget(server_address_widget)
-    server_layout.addWidget(open_colab_widget)
-    server_container.setLayout(server_layout)
+    server_container = hbox(server_address_widget, open_colab_widget)
 
-    open_colab_widget.clicked.connect(handle_colab_button)
 
     stbale_diffusion_manager.mode_widget = runtime_select_widget
     stbale_diffusion_manager.huggingface_token_widget = huggingface_token_text_field
@@ -1383,29 +1356,10 @@ if __name__ == '__main__':
 
     server_address_widget.setText('http://127.0.0.1:5000')
 
-    brush_options = ['square', 'circle']
     def brush_select_callback(num):
         option = brush_options[num]
         widget.brush = option
         scratchpad.brush = option
-
-
-    box_size_limit_container = QWidget()
-    box_size_limit_label = QLabel('Should limit box size')
-    box_size_limit_checkbox = QCheckBox()
-    box_size_limit_checkbox.setChecked(True)
-    box_size_limit_layout = QHBoxLayout()
-    swap_buttons_label = QLabel('Paint using left click')
-    swap_buttons_checkbox = QCheckBox()
-    brush_select_widget, _  = create_select_widget('Brush', brush_options, brush_select_callback)
-    swap_buttons_checkbox.setChecked(False)
-    box_size_limit_layout.addWidget(box_size_limit_label)
-    box_size_limit_layout.addWidget(box_size_limit_checkbox)
-    box_size_limit_layout.addWidget(swap_buttons_label)
-    box_size_limit_layout.addWidget(swap_buttons_checkbox)
-    box_size_limit_layout.addWidget(brush_select_widget)
-
-    box_size_limit_container.setLayout(box_size_limit_layout)
 
     def box_size_limit_callback(state):
         if state == Qt.Checked:
@@ -1430,19 +1384,10 @@ if __name__ == '__main__':
     def handle_autofill():
         widget.handle_autofill()
 
-    fill_button = QPushButton('Autofill')
-    fill_button.clicked.connect(handle_autofill)
 
-    mask_control_container = QWidget()
-    mask_control_layout = QHBoxLayout()
-
-    mask_container_label = QLabel('Advanced Inpainting Mask')
     save_mask_button = QPushButton('Save Mask')
     forget_mask_button = QPushButton('Forget Mask')
-    mask_control_layout.addWidget(mask_container_label)
-    mask_control_layout.addWidget(save_mask_button)
-    mask_control_layout.addWidget(forget_mask_button)
-    mask_control_container.setLayout(mask_control_layout)
+    mask_control_container = hbox(('Advanced Inpainting Mask', save_mask_button), forget_mask_button)
 
     scroll_area = QScrollArea()
 
@@ -1504,6 +1449,13 @@ if __name__ == '__main__':
     github_button.clicked.connect(lambda : handle_github_button())
     save_mask_button.clicked.connect(lambda : widget.handle_save_mask())
     forget_mask_button.clicked.connect(lambda : widget.handle_forget_mask())
+    huggingface_token_open_button.clicked.connect(handle_huggingface_button)
+    brush_selector.activated.connect(brush_select_callback)
+    fill_button.clicked.connect(handle_autofill)
+    modifiers_save_button.clicked.connect(handle_save_modifiers)
+    modifiers_load_button.clicked.connect(handle_load_modifiers)
+    seed_random_button.clicked.connect(random_seed_buton_handler)
+    open_colab_widget.clicked.connect(handle_colab_button)
 
     widget.color_pushbutton = select_color_button
     widget.paint_checkbox = swap_buttons_checkbox

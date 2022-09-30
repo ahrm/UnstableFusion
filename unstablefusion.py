@@ -295,8 +295,8 @@ class StableDiffusionManager:
 
     def get_local_handler(self, token=True):
         if self.cached_local_handler == None:
-            # self.cached_local_handler = StableDiffusionHandler(token)
-            self.cached_local_handler = DummyStableDiffusionHandler()
+            self.cached_local_handler = StableDiffusionHandler(token)
+            # self.cached_local_handler = DummyStableDiffusionHandler()
 
         return self.cached_local_handler
     
@@ -660,11 +660,6 @@ class PaintWidget(QWidget):
             image_index, source_index = self.get_selection_index()
             new_image = self.np_image.copy()
 
-            # image_rect = self.clone_rect(self.selection_rectangle)
-            # image_rect, source_rect = self.crop_image_rect(image_rect)
-            # target_width = image_rect.width()
-            # target_height = image_rect.height()
-
             patch_np = np.array(patch_image)[(*source_index, slice(None, None))]
 
             if patch_np.shape[-1] == 4:
@@ -740,15 +735,10 @@ class PaintWidget(QWidget):
         if button == Qt.MidButton:
             self.paint_selection()
             self.is_dragging = True
-            # self.selection_rectangle_size = (256, 256)
-            # self.update_selection_rectangle()
 
         self.update()
 
     def window_to_image_point(self, point: QPoint):
-        # new_x = (point.x() - self.width()/2 ) / self.window_scale + self.np_image.shape[1]
-        # new_y = (point.y() - self.height()/2 ) / self.window_scale + self.np_image.shape[0]
-
         new_x = (point.x() - self.width()/2 + self.np_image.shape[1] * self.window_scale / 2 ) / self.window_scale
         new_y = (point.y() - self.height()/2 + self.np_image.shape[0] * self.window_scale / 2) / self.window_scale
         return QPoint(int(new_x), int(new_y))
@@ -761,25 +751,30 @@ class PaintWidget(QWidget):
     def image_to_window_rect(self, rect):
         return QRect(self.image_to_window_point(rect.topLeft()), self.image_to_window_point(rect.bottomRight()))
 
+    def draw_checkerboard_pattern(self, painter):
+        w = self.width()
+        h = self.height()
+        painter.fillRect(QRect(0, 0, w, h), QBrush(Qt.white))
+        size = 16
+        Nx = w // size
+        Ny = h // size
+
+        for i in range(Nx):
+            for j in range(Ny):
+                if (i+j) % 2 == 0:
+                    rect = QRect((i * w) // Nx, (j * h) // Ny, w // Nx, h // Ny)
+                    painter.fillRect(rect, QBrush(QColor(220, 220, 220)))
+
+
     def paintEvent(self, e):
         painter = QPainter(self)
 
-        checkerboard_brush = QBrush()
-        checkerboard_brush.setColor(QColor('gray'))
-        checkerboard_brush.setStyle(Qt.Dense5Pattern)
+        self.draw_checkerboard_pattern(painter)
 
         if self.qt_image != None:
             w, h = self.qt_image.width(), self.qt_image.height()
-            window_width = self.width()
-            window_height = self.height()
-            offset_x = (window_width - w) / 2
-            offset_y = (window_height - h) / 2
-            # self.image_rect = QRect(int(offset_x), int(offset_y), int(w), int(h))
-            self.image_rect = QRect(0, 0, int(w), int(h))
-            prev_brush = painter.brush()
-            painter.fillRect(self.image_to_window_rect(self.image_rect), checkerboard_brush)
-            painter.setBrush(prev_brush)
-            painter.drawImage(self.image_to_window_rect(self.image_rect), self.qt_image)
+            image_rect = QRect(0, 0, int(w), int(h))
+            painter.drawImage(self.image_to_window_rect(image_rect), self.qt_image)
 
 
         if self.selection_rectangle != None:

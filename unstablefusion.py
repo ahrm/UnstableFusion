@@ -295,8 +295,8 @@ class StableDiffusionManager:
 
     def get_local_handler(self, token=True):
         if self.cached_local_handler == None:
-            self.cached_local_handler = StableDiffusionHandler(token)
-            # self.cached_local_handler = DummyStableDiffusionHandler()
+            # self.cached_local_handler = StableDiffusionHandler(token)
+            self.cached_local_handler = DummyStableDiffusionHandler()
 
         return self.cached_local_handler
     
@@ -659,6 +659,12 @@ class PaintWidget(QWidget):
         if self.selection_rectangle != None:
             image_index, source_index = self.get_selection_index()
             new_image = self.np_image.copy()
+
+            # image_rect = self.clone_rect(self.selection_rectangle)
+            # image_rect, source_rect = self.crop_image_rect(image_rect)
+            # target_width = image_rect.width()
+            # target_height = image_rect.height()
+
             patch_np = np.array(patch_image)[(*source_index, slice(None, None))]
 
             if patch_np.shape[-1] == 4:
@@ -673,19 +679,9 @@ class PaintWidget(QWidget):
             self.set_np_image(new_image)
 
     def get_selection_np_image(self):
-
-        image_rect = self.clone_rect(self.selection_rectangle)
-        image_rect, source_rect = self.crop_image_rect(image_rect)
         result = np.zeros((self.selection_rectangle.height(), self.selection_rectangle.width(), 4), dtype=np.uint8)
-
-        if image_rect.width() != source_rect.width():
-            source_rect.setRight(source_rect.right()-1)
-
-        if image_rect.height() != source_rect.height():
-            source_rect.setBottom(source_rect.bottom()-1)
-
-        result[source_rect.top():source_rect.bottom(), source_rect.left():source_rect.right(), :] = \
-            self.np_image[image_rect.top():image_rect.bottom(), image_rect.left():image_rect.right(), :]
+        image_index, source_index = self.get_selection_index()
+        result[(*source_index, slice(None, None))] = self.np_image[(*image_index, slice(None, None))]
         return result
 
     def set_size_small(self):

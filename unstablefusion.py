@@ -657,26 +657,20 @@ class PaintWidget(QWidget):
 
     def set_selection_image(self, patch_image):
         if self.selection_rectangle != None:
-            image_rect = self.clone_rect(self.selection_rectangle)
-            image_rect, source_rect = self.crop_image_rect(image_rect)
+            image_index, source_index = self.get_selection_index()
             new_image = self.np_image.copy()
-            target_width = image_rect.width()
-            target_height = image_rect.height()
-            patch_np = np.array(patch_image)[source_rect.top():source_rect.bottom(), source_rect.left():source_rect.right(), :][:target_height, :target_width, :]
+            patch_np = np.array(patch_image)[(*source_index, slice(None, None))]
+
             if patch_np.shape[-1] == 4:
                 patch_np, patch_alpha = patch_np[:, :, :3], patch_np[:, :, 3]
                 patch_alpha = (patch_alpha > 128) * 255
             else:
                 patch_alpha = np.ones((patch_np.shape[0], patch_np.shape[1])).astype(np.uint8) * 255
 
-            index = (slice(image_rect.top(), image_rect.top() + patch_np.shape[0]), slice(image_rect.left(),image_rect.left()+patch_np.shape[1]), slice(None, None, None))
+            index = (*image_index, slice(None, None))
             new_patch = np.concatenate([patch_np, patch_alpha[:, :, None]], axis=-1)
-
             new_image[index][patch_alpha > 128] = new_patch[patch_alpha > 128]
-            
-            
             self.set_np_image(new_image)
-
 
     def get_selection_np_image(self):
 

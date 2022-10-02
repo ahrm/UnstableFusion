@@ -1,4 +1,4 @@
-#pip install -r requirements_localgpu-win64.txt
+#pip install -r requirements-localgpu-win64.txt
 diffusers>=0.3.0
 Flask>=1.1.2
 numpy>=1.21.6

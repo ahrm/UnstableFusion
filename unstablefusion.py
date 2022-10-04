@@ -752,9 +752,12 @@ class PaintWidget(QWidget):
         return QRect(self.image_to_window_point(rect.topLeft()), self.image_to_window_point(rect.bottomRight()))
 
     def draw_checkerboard_pattern(self, painter):
-        w = self.width()
-        h = self.height()
-        painter.fillRect(QRect(0, 0, w, h), QBrush(Qt.white))
+        image_rect = QRect(0, 0, self.qt_image.width(), self.qt_image.height())
+        image_window_rect = self.image_to_window_rect(image_rect)
+
+        w = image_window_rect.width()
+        h = image_window_rect.height()
+        # painter.fillRect(QRect(0, 0, w, h), QBrush(Qt.white))
         size = 16
         Nx = w // size
         Ny = h // size
@@ -762,7 +765,7 @@ class PaintWidget(QWidget):
         for i in range(Nx):
             for j in range(Ny):
                 if (i+j) % 2 == 0:
-                    rect = QRect((i * w) // Nx, (j * h) // Ny, w // Nx, h // Ny)
+                    rect = QRect(image_window_rect.bottomLeft().x() + (i * w) // Nx, image_window_rect.topLeft().y() + (j * h) // Ny, w // Nx, h // Ny)
                     painter.fillRect(rect, QBrush(QColor(220, 220, 220)))
 
 

@@ -1106,6 +1106,8 @@ def handle_huggingface_button():
 def handle_colab_button():
     QDesktopServices.openUrl(QUrl('https://colab.research.google.com/github/ahrm/UnstableFusion/blob/main/UnstableFusionServer.ipynb'))
 
+def handle_advanced_inpainting_doc_button():
+    QDesktopServices.openUrl(QUrl('https://github.com/ahrm/UnstableFusion#how-to-use-advanced-inpainting'))
 class PromptLineEdit(QLineEdit):
 
     def __init__(self, mods, *args, **kwargs):
@@ -1378,7 +1380,8 @@ if __name__ == '__main__':
 
     save_mask_button = QPushButton('Save Mask')
     forget_mask_button = QPushButton('Forget Mask')
-    mask_control_container = hbox(('Advanced Inpainting Mask', save_mask_button), forget_mask_button)
+    advanced_inpainting_doc_button = QPushButton('?')
+    mask_control_container = hbox(('Advanced Inpainting Mask', save_mask_button), forget_mask_button, advanced_inpainting_doc_button)
 
     scroll_area = QScrollArea()
 
@@ -1448,6 +1451,7 @@ if __name__ == '__main__':
     modifiers_load_button.clicked.connect(handle_load_modifiers)
     seed_random_button.clicked.connect(random_seed_buton_handler)
     open_colab_widget.clicked.connect(handle_colab_button)
+    advanced_inpainting_doc_button.clicked.connect(handle_advanced_inpainting_doc_button)
 
     widget.color_pushbutton = select_color_button
     widget.paint_checkbox = swap_buttons_checkbox

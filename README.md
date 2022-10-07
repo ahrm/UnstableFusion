@@ -49,3 +49,12 @@ copy this URL.
 * `Increase Size`/`Decrease Size` buttons adjust the size of the image by adding/removing extra space in the margins (and not by scaling, this is useful when you want to add more detail around an image)
 * You can open a scratchpad by pressing `Show Scratchpad` button. This window is capable of doing everything the main window can (using keyboard shortcuts only). The selected box in scratch pad will be mirrored and scaled into the selected box in the main window.
 This is useful when trying to import another generated/local image into the main image.
+
+### How to use advanced inpainting?
+
+Admittedly, the UI for advanced inpainting is a little unintuitive.
+Here is how to works:
+
+1. You clear the part of the image that you want to inpaint (just like normal inpainting)
+2. Select the target box (again, like normal inpainting), but instead of clicking on the inpaint button, click on `Save Mask` button. From now on, the current mask and current selected box will be used for inpainting no matter how you change the box/image (until you press `Forget Mask` button)
+3. This means that you are free to edit the initial image as you please using other operations. For example, you can autofill the masked area using `Autofill` button, or manually paint the target area or paste any image from scratchpad. Since this initial image will be used to initialize the masked part, it will heavily affect the final result. Therefore by controlling this initial image, you can modify the final result to your will.

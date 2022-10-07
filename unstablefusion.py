@@ -223,7 +223,7 @@ class ServerStableDiffusionHandler:
         if self.addr[-1] != '/':
             self.addr += '/'
     
-    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1, callback=None):
+    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1, callback=None, negative_prompt=None):
         request_data = {
             'prompt': prompt,
             'strength': strength,
@@ -231,7 +231,8 @@ class ServerStableDiffusionHandler:
             'guidance_scale': guidance_scale,
             'seed': seed,
             'image': image.tolist(),
-            'mask': mask.tolist()
+            'mask': mask.tolist(),
+            'negative_prompt': negative_prompt
         }
         url = self.addr + 'inpaint'
 
@@ -244,7 +245,7 @@ class ServerStableDiffusionHandler:
 
         return Image.frombytes(mode, size, image_data)
     
-    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1, callback=None):
+    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1, callback=None, negative_prompt=None):
             request_data = {
                 'prompt': prompt,
                 'strength': strength,
@@ -252,7 +253,8 @@ class ServerStableDiffusionHandler:
                 'guidance_scale': guidance_scale,
                 'seed': seed,
                 'width': width,
-                'height': height
+                'height': height,
+                'negative_prompt': negative_prompt
             }
             url = self.addr + 'generate'
 
@@ -265,7 +267,7 @@ class ServerStableDiffusionHandler:
 
             return Image.frombytes(mode, size, image_data)
     
-    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=7.5, callback=None):
+    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=7.5, callback=None, negative_prompt=None):
         request_data = {
             'prompt': prompt,
             'steps': steps,
@@ -273,6 +275,7 @@ class ServerStableDiffusionHandler:
             'seed': seed,
             'strength': strength,
             'image': image.tolist(),
+            'negative_prompt': negative_prompt
         }
         url = self.addr + 'reimagine'
 
@@ -322,7 +325,7 @@ class SavedMaskState:
     box: QRect
 class PaintWidget(QWidget):
 
-    def __init__(self, prompt_textarea_, modifiers_textarea_, stable_diffusion_manager_, *args, **kwargs):
+    def __init__(self, prompt_textarea_, negative_prompt_textarea_, modifiers_textarea_, stable_diffusion_manager_, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.np_image = None
         self.qt_image = None
@@ -347,6 +350,7 @@ class PaintWidget(QWidget):
         self.saved_mask_state = None
         self.brush = 'square'
         self.prompt_textarea = prompt_textarea_
+        self.negative_prompt_textarea = negative_prompt_textarea_
         self.modifiers_textarea = modifiers_textarea_
         self.stable_diffusion_manager = stable_diffusion_manager_
         self.preview_image = None
@@ -846,6 +850,7 @@ class PaintWidget(QWidget):
 
 
             prompt = self.get_prompt()
+            negative_prompt = self.get_negative_prompt()
             width = self.selection_rectangle.width()
             height = self.selection_rectangle.height()
             image = self.get_handler().generate(prompt,
@@ -855,7 +860,8 @@ class PaintWidget(QWidget):
                                                 strength=self.strength,
                                                 steps=self.steps,
                                                 guidance_scale=self.guidance_scale,
-                                                callback=self.get_callback())
+                                                callback=self.get_callback(),
+                                                negative_prompt=negative_prompt)
             self.preview_image = None
             self.set_selection_image(image)
             self.update()
@@ -865,6 +871,7 @@ class PaintWidget(QWidget):
     def handle_inpaint_button(self):
         try:
             prompt = self.get_prompt()
+            negative_prompt = self.get_negative_prompt()
             if self.saved_mask_state != None:
                 self.selection_rectangle = self.saved_mask_state.box
 
@@ -886,7 +893,8 @@ class PaintWidget(QWidget):
                                                          steps=self.steps,
                                                          guidance_scale=self.guidance_scale,
                                                          seed=self.seed,
-                                                         callback=self.get_callback())
+                                                         callback=self.get_callback(),
+                                                         negative_prompt=negative_prompt)
             self.preview_image = None
                     
 
@@ -985,10 +993,17 @@ class PaintWidget(QWidget):
     def get_prompt(self):
         return self.prompt_textarea.text() + ", " + self.modifiers_textarea.text()
 
+    def get_negative_prompt(self):
+        res = self.negative_prompt_textarea.text()
+        if len(res) == 0:
+            return None
+        return res
+
     def handle_reimagine_button(self):
 
         try:
             prompt = self.get_prompt()
+            negative_prompt = self.get_negative_prompt()
             image_ = self.get_selection_np_image()
             image = image_[:, :, :3]
             reimagined_image = self.get_handler().reimagine(prompt,
@@ -997,7 +1012,8 @@ class PaintWidget(QWidget):
                                                         strength=self.strength,
                                                         guidance_scale=self.guidance_scale,
                                                         seed=self.seed,
-                                                        callback=self.get_callback())
+                                                        callback=self.get_callback(),
+                                                        negative_prompt=negative_prompt)
             self.preview_image = None
 
             self.set_selection_image(reimagined_image)
@@ -1198,6 +1214,9 @@ if __name__ == '__main__':
     prompt_textarea = QLineEdit()
     prompt_textarea.setPlaceholderText('Prompt')
 
+    negative_prompt_textarea = QLineEdit()
+    negative_prompt_textarea.setPlaceholderText('Negative Prompt')
+
     modifiers_textarea = PromptLineEdit(mods)
     modifiers_textarea.setPlaceholderText('Modifiers')
     modifiers_save_button = QPushButton('Save Modifiers')
@@ -1242,8 +1261,8 @@ if __name__ == '__main__':
 
     export_button = QPushButton('Export')
 
-    widget = PaintWidget(prompt_textarea, modifiers_textarea, stbale_diffusion_manager)
-    scratchpad = PaintWidget(prompt_textarea, modifiers_textarea, stbale_diffusion_manager)
+    widget = PaintWidget(prompt_textarea, negative_prompt_textarea, modifiers_textarea, stbale_diffusion_manager)
+    scratchpad = PaintWidget(prompt_textarea, negative_prompt_textarea, modifiers_textarea, stbale_diffusion_manager)
 
     widget.scratchpad = scratchpad
     widget.set_should_preview_scratchpad(True)
@@ -1370,6 +1389,7 @@ if __name__ == '__main__':
     image_groupbox_layout.addWidget(box_size_limit_container)
     image_groupbox_layout.addWidget(fill_button)
     params_groupbox_layout.addWidget(prompt_textarea)
+    params_groupbox_layout.addWidget(negative_prompt_textarea)
     params_groupbox_layout.addWidget(modifiers_container)
     params_groupbox_layout.addWidget(strength_widget)
     params_groupbox_layout.addWidget(steps_widget)

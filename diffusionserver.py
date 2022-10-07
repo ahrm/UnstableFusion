@@ -1,3 +1,4 @@
+from lib2to3.pytree import NegatedPattern
 from urllib import request
 import numpy as np
 from PIL import Image
@@ -61,7 +62,7 @@ class StableDiffusionHandler:
         else:
             return torch.Generator("cuda").manual_seed(seed)
     
-    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1, callback=None):
+    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1, callback=None, negative_prompt=None):
         print(f'Inpainting with strength {strength}, steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
         image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
         mask_ = Image.fromarray(mask.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
@@ -75,11 +76,12 @@ class StableDiffusionHandler:
                 num_inference_steps=steps,
                 guidance_scale=guidance_scale,
                 generator=self.get_generator(seed),
-                callback=callback
+                callback=callback,
+                negative_prompt=negative_prompt
             )["sample"][0]
             return im.resize((image.shape[1], image.shape[0]), resample=Image.LANCZOS)
     
-    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1, callback=None):
+    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1, callback=None, negative_prompt=None):
         print(f'Generating with strength {strength}, steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
 
         with autocast("cuda"):
@@ -91,12 +93,13 @@ class StableDiffusionHandler:
                 num_inference_steps=steps,
                 guidance_scale=guidance_scale,
                 callback=callback,
+                negative_prompt=negative_prompt,
                 generator=self.get_generator(seed)
             )["sample"][0]
 
             return im.resize((width, height), resample=Image.LANCZOS)
     
-    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=0.75, callback=None):
+    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=0.75, callback=None, negative_prompt=None):
 
         print(f'Reimagining with strength {strength} steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
         image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
@@ -108,6 +111,7 @@ class StableDiffusionHandler:
                 guidance_scale=guidance_scale,
                 strength=strength,
                 generator=self.get_generator(seed),
+                negative_prompt=negative_prompt,
                 callback=callback
             )["sample"]
             print(len(results))
@@ -129,13 +133,21 @@ def run_app():
         # get request data
         data = request.get_json()
         prompt = data["prompt"]
+        negative_prompt = data.get("negative_prompt", None)
         steps = data["steps"]
         guidance_scale = data["guidance_scale"]
         seed = data["seed"]
         strength = data["strength"]
         image = np.array(data['image'])
 
-        generated = stable_diffusion_handler.reimagine(prompt, image, steps=steps, guidance_scale=guidance_scale, seed=seed, strength=strength)
+        generated = stable_diffusion_handler.reimagine(
+            prompt,
+            image,
+            steps=steps,
+            guidance_scale=guidance_scale,
+            seed=seed,
+            strength=strength,
+            negative_prompt=negative_prompt)
 
         return jsonify({
             "status": "success",
@@ -149,6 +161,7 @@ def run_app():
         # get request data
         data = request.get_json()
         prompt = data["prompt"]
+        negative_prompt = data.get("negative_prompt", None)
         strength = data["strength"]
         steps = data["steps"]
         guidance_scale = data["guidance_scale"]
@@ -156,7 +169,15 @@ def run_app():
         image = np.array(data['image'])
         mask = np.array(data['mask'])
 
-        generated = stable_diffusion_handler.inpaint(prompt, image, mask, strength=strength, steps=steps, guidance_scale=guidance_scale, seed=seed)
+        generated = stable_diffusion_handler.inpaint(
+            prompt,
+            image,
+            mask,
+            strength=strength,
+            steps=steps,
+            guidance_scale=guidance_scale,
+            seed=seed,
+            negative_prompt=negative_prompt)
 
         return jsonify({
             "status": "success",
@@ -170,6 +191,7 @@ def run_app():
         # get request data
         data = request.get_json()
         prompt = data["prompt"]
+        negative_prompt = data.get("negative_prompt", None)
         strength = data["strength"]
         steps = data["steps"]
         guidance_scale = data["guidance_scale"]
@@ -177,7 +199,15 @@ def run_app():
         width = data["width"]
         height = data["height"]
 
-        generated = stable_diffusion_handler.generate(prompt, strength=strength, steps=steps, guidance_scale=guidance_scale, seed=seed, width=width, height=height)
+        generated = stable_diffusion_handler.generate(
+            prompt,
+            strength=strength,
+            steps=steps,
+            guidance_scale=guidance_scale,
+            seed=seed,
+            width=width,
+            height=height,
+            negative_prompt=negative_prompt)
 
         return jsonify({
             "status": "success",

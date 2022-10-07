@@ -827,11 +827,9 @@ class PaintWidget(QWidget):
         self.update()
     
     def get_callback(self):
-        def callback(iternum, num_steps, latents, sd):
+        def callback(iternum, num_steps, latents):
 
-            done = iternum / num_steps
-            # latents_ = 1 / 0.18215 * latents
-            # image = ((latents_ / 2 + 0.5).clamp(0, 1).cpu().numpy().transpose(0, 2, 3, 1)[0].copy() * 255).astype(np.uint8)
+            done = (1000 - num_steps.cpu().item()) / 1000
             image = np.zeros((10, 10, 4), dtype=np.uint8)
             num_highlights = int(image.shape[1] * done)
             bottom = max(1, int(image.shape[0] * 0.1))

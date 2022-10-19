@@ -547,6 +547,9 @@ class PaintWidget(QWidget):
             delta = -1
         delta *= max(1, int(self.selection_rectangle_size[0] / 10))
 
+        if QApplication.keyboardModifiers() & Qt.ShiftModifier:
+            return
+
         if QApplication.keyboardModifiers() & Qt.ControlModifier:
             if delta > 0:
                 self.inc_window_scale()
@@ -1152,6 +1155,21 @@ class PromptLineEdit(QLineEdit):
         return None
     
     
+class CustomScroll(QScrollArea):
+
+    def __init__(self):
+        QScrollArea.__init__(self)
+
+    def wheelEvent(self, ev):
+        if ev.type() == QEvent.Wheel:
+            if QApplication.keyboardModifiers() & Qt.ShiftModifier:
+                if QApplication.keyboardModifiers() & Qt.ControlModifier:
+                    self.verticalScrollBar().setValue(self.verticalScrollBar().value() - ev.angleDelta().y())
+                else:
+                    self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - ev.angleDelta().y())
+                ev.accept()
+            else:
+                ev.ignore()
 
 if __name__ == '__main__':
     stbale_diffusion_manager = StableDiffusionManager()
@@ -1470,13 +1488,19 @@ if __name__ == '__main__':
 
     initial_texture = get_texture()
 
+    widget_container = CustomScroll()
+    widget_container.setWidget(widget)
+    widget_container.resize(initial_texture.shape[0] + 10, initial_texture.shape[1] + 10)
+    widget_container.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
+
     widget.setWindowTitle('UnstableFusion')
     scratchpad.setWindowTitle('Scratchpad')
     tools_widget.setWindowTitle('Tools')
     widget.set_np_image(initial_texture)
     scratchpad.set_np_image(initial_texture)
     widget.resize_to_image()
-    widget.show()
+    # widget.show()
+    widget_container.show()
     # tools_widget.show()
     scroll_area.resize(tools_widget.sizeHint())
     scroll_area.show()

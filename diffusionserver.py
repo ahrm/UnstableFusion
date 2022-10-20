@@ -78,7 +78,7 @@ class StableDiffusionHandler:
                 generator=self.get_generator(seed),
                 callback=callback,
                 negative_prompt=negative_prompt
-            )["sample"][0]
+            )[0][0]
             return im.resize((image.shape[1], image.shape[0]), resample=Image.LANCZOS)
     
     def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1, callback=None, negative_prompt=None):
@@ -95,7 +95,7 @@ class StableDiffusionHandler:
                 callback=callback,
                 negative_prompt=negative_prompt,
                 generator=self.get_generator(seed)
-            )["sample"][0]
+            )[0][0]
 
             return im.resize((width, height), resample=Image.LANCZOS)
     
@@ -113,7 +113,7 @@ class StableDiffusionHandler:
                 generator=self.get_generator(seed),
                 negative_prompt=negative_prompt,
                 callback=callback
-            )["sample"]
+            )[0]
             print(len(results))
             im = results[0]
             return im.resize((image.shape[1], image.shape[0]), resample=Image.LANCZOS)

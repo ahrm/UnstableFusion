@@ -55,6 +55,10 @@ class StableDiffusionHandler:
         self.inpainter.safety_checker = dummy_safety_checker
         self.img2img.safety_checker = dummy_safety_checker
         self.text2img.safety_checker = dummy_safety_checker
+        
+        self.text2img.enable_attention_slicing()
+        self.img2img.enable_attention_slicing()
+        self.inpainter.enable_attention_slicing()
     
     def get_generator(self, seed):
         if seed == -1:

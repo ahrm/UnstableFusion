@@ -1,4 +1,4 @@
-diffusers>=0.4.1
+diffusers>=0.6.0
 Flask>=1.1.2
 numpy>=1.21.6
 Pillow>=9.2.0

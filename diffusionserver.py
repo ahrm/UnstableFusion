@@ -2,8 +2,8 @@ from lib2to3.pytree import NegatedPattern
 from urllib import request
 import numpy as np
 from PIL import Image
-from diffusers import StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionImg2ImgPipeline
-from diffusers import StableDiffusionInpaintPipeline, StableDiffusionImg2ImgPipeline
+from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline
+from diffusers import StableDiffusionInpaintPipelineLegacy
 
 from torch import autocast
 import torch
@@ -32,7 +32,7 @@ class StableDiffusionHandler:
 
         # self.text2img.safety_checker = dummy_safety_checker
 
-        self.inpainter = StableDiffusionInpaintPipeline(
+        self.inpainter = StableDiffusionInpaintPipelineLegacy(
             vae=self.text2img.vae,
             text_encoder=self.text2img.text_encoder,
             tokenizer=self.text2img.tokenizer,

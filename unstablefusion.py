@@ -21,6 +21,8 @@ import datetime
 import requests
 from base64 import decodebytes
 import random
+import time
+import asyncio
 from dataclasses import dataclass
 
 SIZE_INCREASE_INCREMENT = 20
@@ -199,6 +201,7 @@ class DummyStableDiffusionHandler:
         new_image = image.copy()[:, :, :3]
         # new_image[mask > 0] = np.array([255, 0, 0])
         new_image[mask > 0] = inpainted_image[mask > 0]
+        time.sleep(3)
         return Image.fromarray(new_image)
 
     def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5, seed=-1, **kwargs):
@@ -209,9 +212,11 @@ class DummyStableDiffusionHandler:
             np_im[i, :, 1] = int((i / np_im.shape[0]) * 255)
         for j in range(np_im.shape[1]):
             np_im[:, j, 2] = int((j / np_im.shape[0]) * 255)
+        time.sleep(3)
         return Image.fromarray(np_im)
 
     def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, **kwargs):
+        time.sleep(3)
         return image
 
 
@@ -244,7 +249,7 @@ class ServerStableDiffusionHandler:
 
         return Image.frombytes(mode, size, image_data)
     
-    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1, callback=None, negative_prompt=None):
+    async def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1, callback=None, negative_prompt=None):
             request_data = {
                 'prompt': prompt,
                 'strength': strength,
@@ -257,7 +262,7 @@ class ServerStableDiffusionHandler:
             }
             url = self.addr + 'generate'
 
-            resp = requests.post(url, json=request_data)
+            resp = await requests.post(url, json=request_data)
 
             resp_data = resp.json()
             size = resp_data['image_size']
@@ -297,8 +302,8 @@ class StableDiffusionManager:
 
     def get_local_handler(self, token=True):
         if self.cached_local_handler == None:
-            self.cached_local_handler = StableDiffusionHandler(token)
-            # self.cached_local_handler = DummyStableDiffusionHandler()
+            # self.cached_local_handler = StableDiffusionHandler(token)
+            self.cached_local_handler = DummyStableDiffusionHandler()
 
         return self.cached_local_handler
     
@@ -612,8 +617,11 @@ class PaintWidget(QWidget):
             image_rect.setBottom(self.qt_image.height())
         return image_rect, source_rect
 
-    def get_selection_index(self):
-        image_rect = self.clone_rect(self.selection_rectangle)
+    def get_selection_index(self, rect=None):
+        if rect == None:
+            rect = self.selection_rectangle
+
+        image_rect = self.clone_rect(rect)
         image_rect, source_rect = self.crop_image_rect(image_rect)
         return (slice(image_rect.top(), image_rect.bottom()), slice(image_rect.left(), image_rect.right())),\
                 (slice(source_rect.top(), source_rect.bottom()), slice(source_rect.left(), source_rect.right()))
@@ -661,8 +669,11 @@ class PaintWidget(QWidget):
             self.set_np_image(new_image, add_to_history=add_to_history)
     
 
-    def set_selection_image(self, patch_image):
-        if self.selection_rectangle != None:
+    def set_selection_image(self, patch_image, rect=None):
+        if rect == None:
+            rect = self.selection_rectangle
+
+        if rect != None:
             image_index, source_index = self.get_selection_index()
             new_image = self.np_image.copy()
 
@@ -844,7 +855,7 @@ class PaintWidget(QWidget):
             self.repaint()
         return callback
 
-    def handle_generate_button(self):
+    async def handle_generate_button(self):
         try:
             if self.selection_rectangle == None:
                 QErrorMessage(self).showMessage("Select the target square first")
@@ -855,7 +866,8 @@ class PaintWidget(QWidget):
             negative_prompt = self.get_negative_prompt()
             width = self.selection_rectangle.width()
             height = self.selection_rectangle.height()
-            image = self.get_handler().generate(prompt,
+            rect = self.selection_rectangle
+            image = await self.get_handler().generate(prompt,
                                                 width=width,
                                                 height=height,
                                                 seed=self.seed,
@@ -865,7 +877,7 @@ class PaintWidget(QWidget):
                                                 callback=self.get_callback(),
                                                 negative_prompt=negative_prompt)
             self.preview_image = None
-            self.set_selection_image(image)
+            self.set_selection_image(image, rect)
             self.update()
         except Exception:
             print(traceback.format_exc())
@@ -1450,7 +1462,7 @@ if __name__ == '__main__':
     erase_button.clicked.connect(lambda : widget.handle_erase_button())
     undo_button.clicked.connect(lambda : widget.handle_undo_button())
     redo_button.clicked.connect(lambda : widget.handle_redo_button())
-    generate_button.clicked.connect(lambda : widget.handle_generate_button())
+    generate_button.clicked.connect(lambda : asyncio.get_event_loop().create_task(widget.handle_generate_button()))
     inpaint_button.clicked.connect(lambda : widget.handle_inpaint_button())
     quicksave_button.clicked.connect(lambda : widget.handle_quicksave_button())
     quickload_button.clicked.connect(lambda : widget.handle_quickload_button())
@@ -1511,4 +1523,9 @@ if __name__ == '__main__':
     # tools_widget.show()
     scroll_area.resize(tools_widget.sizeHint())
     scroll_area.show()
-    app.exec()
+
+    async def main():
+        app.exec()
+
+    asyncio.run(main())
+    # app.exec()

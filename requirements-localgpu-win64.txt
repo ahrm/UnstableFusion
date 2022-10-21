@@ -10,3 +10,5 @@ opencv_python>=4.2.0.32
 transformers>=4.22.1
 --extra-index-url https://download.pytorch.org/whl/cu113 --trusted-host https://download.pytorch.org
 torch>=1.12.1
+qasync>=0.23.0
+httpx>=0.13.3

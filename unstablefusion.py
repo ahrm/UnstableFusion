@@ -18,12 +18,15 @@ import time
 import json
 import os
 import datetime
-import requests
 from base64 import decodebytes
 import random
 import time
 import asyncio
+import qasync
+import httpx
 from dataclasses import dataclass
+
+client = httpx.AsyncClient(timeout=None)
 
 SIZE_INCREASE_INCREMENT = 20
 brush_options = ['square', 'circle']
@@ -227,7 +230,7 @@ class ServerStableDiffusionHandler:
         if self.addr[-1] != '/':
             self.addr += '/'
     
-    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1, callback=None, negative_prompt=None):
+    async def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1, callback=None, negative_prompt=None):
         request_data = {
             'prompt': prompt,
             'strength': strength,
@@ -240,7 +243,7 @@ class ServerStableDiffusionHandler:
         }
         url = self.addr + 'inpaint'
 
-        resp = requests.post(url, json=request_data)
+        resp = await client.post(url, json=request_data)
 
         resp_data = resp.json()
         size = resp_data['image_size']
@@ -262,7 +265,8 @@ class ServerStableDiffusionHandler:
             }
             url = self.addr + 'generate'
 
-            resp = await requests.post(url, json=request_data)
+            # resp = await requests.post(url, json=request_data)
+            resp = await client.post(url, json=request_data)
 
             resp_data = resp.json()
             size = resp_data['image_size']
@@ -271,7 +275,7 @@ class ServerStableDiffusionHandler:
 
             return Image.frombytes(mode, size, image_data)
     
-    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=7.5, callback=None, negative_prompt=None):
+    async def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=7.5, callback=None, negative_prompt=None):
         request_data = {
             'prompt': prompt,
             'steps': steps,
@@ -283,7 +287,7 @@ class ServerStableDiffusionHandler:
         }
         url = self.addr + 'reimagine'
 
-        resp = requests.post(url, json=request_data)
+        resp = await client.post(url, json=request_data)
 
         resp_data = resp.json()
         size = resp_data['image_size']
@@ -302,8 +306,8 @@ class StableDiffusionManager:
 
     def get_local_handler(self, token=True):
         if self.cached_local_handler == None:
-            # self.cached_local_handler = StableDiffusionHandler(token)
-            self.cached_local_handler = DummyStableDiffusionHandler()
+            self.cached_local_handler = StableDiffusionHandler(token)
+            # self.cached_local_handler = DummyStableDiffusionHandler()
 
         return self.cached_local_handler
     
@@ -361,6 +365,7 @@ class PaintWidget(QWidget):
         self.color_pushbutton = None
         self.paint_checkbox = None
         self.smooth_inpaint_checkbox = None
+        self.pending_rect = None
 
         self.setAcceptDrops(True)
         self.add_shortcuts()
@@ -385,9 +390,9 @@ class PaintWidget(QWidget):
             'decrease_size': self.handle_decrease_size_button,
             'increase_size': self.handle_increase_size_button,
             'export': self.handle_export_button,
-            'reimagine': self.handle_reimagine_button,
-            'inpaint': self.handle_inpaint_button,
-            'generate': self.handle_generate_button,
+            'reimagine': lambda : asyncio.create_task(self.handle_reimagine_button()),
+            'inpaint': lambda : asyncio.create_task(self.handle_inpaint_button()),
+            'generate': lambda: asyncio.create_task(self.handle_generate_button()),
             'select_color': self.handle_select_color_button,
             'undo': self.undo,
             'redo': self.redo,
@@ -411,6 +416,12 @@ class PaintWidget(QWidget):
             shortcut = QShortcut(QKeySequence(shortcuts[name]), self)
             shortcut.activated.connect(self.update_and(function))
 
+
+    def set_pending_rect(self):
+        self.pending_rect = self.clone_rect(self.selection_rectangle)
+    
+    def reset_pending_rect(self):
+        self.pending_rect = None
 
     def inc_window_scale(self):
         self.window_scale *= 1.1
@@ -600,20 +611,23 @@ class PaintWidget(QWidget):
     def clone_rect(self, widget_rect: QRect):
         return QRect(widget_rect)
 
-    def crop_image_rect(self, image_rect):
-        source_rect = QRect(0, 0, self.selection_rectangle.width(), self.selection_rectangle.height())
+    def crop_image_rect(self, image_rect, rect=None):
+        if rect == None:
+            rect = self.selection_rectangle
+
+        source_rect = QRect(0, 0, rect.width(), rect.height())
 
         if image_rect.left() < 0:
             source_rect.setLeft(-image_rect.left())
             image_rect.setLeft(0)
         if image_rect.right() >= self.qt_image.width():
-            source_rect.setRight(self.selection_rectangle.width() -image_rect.right() + self.qt_image.width() - 1)
+            source_rect.setRight(rect.width() -image_rect.right() + self.qt_image.width() - 1)
             image_rect.setRight(self.qt_image.width())
         if image_rect.top() < 0:
             source_rect.setTop(-image_rect.top())
             image_rect.setTop(0)
         if image_rect.bottom() >= self.qt_image.height():
-            source_rect.setBottom(self.selection_rectangle.height() -image_rect.bottom() + self.qt_image.height() - 1)
+            source_rect.setBottom(rect.height() -image_rect.bottom() + self.qt_image.height() - 1)
             image_rect.setBottom(self.qt_image.height())
         return image_rect, source_rect
 
@@ -622,7 +636,7 @@ class PaintWidget(QWidget):
             rect = self.selection_rectangle
 
         image_rect = self.clone_rect(rect)
-        image_rect, source_rect = self.crop_image_rect(image_rect)
+        image_rect, source_rect = self.crop_image_rect(image_rect, rect)
         return (slice(image_rect.top(), image_rect.bottom()), slice(image_rect.left(), image_rect.right())),\
                 (slice(source_rect.top(), source_rect.bottom()), slice(source_rect.left(), source_rect.right()))
 
@@ -674,7 +688,7 @@ class PaintWidget(QWidget):
             rect = self.selection_rectangle
 
         if rect != None:
-            image_index, source_index = self.get_selection_index()
+            image_index, source_index = self.get_selection_index(rect)
             new_image = self.np_image.copy()
 
             patch_np = np.array(patch_image)[(*source_index, slice(None, None))]
@@ -805,6 +819,10 @@ class PaintWidget(QWidget):
             painter.setPen(QPen(Qt.blue,  1, Qt.DashLine))
             painter.drawRect(self.image_to_window_rect(self.saved_mask_state.box))
 
+        if self.pending_rect:
+            painter.setPen(QPen(Qt.gray,  1, Qt.DashLine))
+            painter.drawRect(self.image_to_window_rect(self.pending_rect))
+
         if not (self.preview_image is None):
             painter.drawImage(self.image_to_window_rect(self.selection_rectangle), qimage_from_array(self.preview_image))
 
@@ -867,22 +885,37 @@ class PaintWidget(QWidget):
             width = self.selection_rectangle.width()
             height = self.selection_rectangle.height()
             rect = self.selection_rectangle
-            image = await self.get_handler().generate(prompt,
-                                                width=width,
-                                                height=height,
-                                                seed=self.seed,
-                                                strength=self.strength,
-                                                steps=self.steps,
-                                                guidance_scale=self.guidance_scale,
-                                                callback=self.get_callback(),
-                                                negative_prompt=negative_prompt)
+            if type(self.get_handler()) == ServerStableDiffusionHandler:
+                self.set_pending_rect()
+                image = await self.get_handler().generate(prompt,
+                                                    width=width,
+                                                    height=height,
+                                                    seed=self.seed,
+                                                    strength=self.strength,
+                                                    steps=self.steps,
+                                                    guidance_scale=self.guidance_scale,
+                                                    callback=self.get_callback(),
+                                                    negative_prompt=negative_prompt)
+                self.reset_pending_rect()
+            else:
+
+                image = self.get_handler().generate(prompt,
+                                                    width=width,
+                                                    height=height,
+                                                    seed=self.seed,
+                                                    strength=self.strength,
+                                                    steps=self.steps,
+                                                    guidance_scale=self.guidance_scale,
+                                                    callback=self.get_callback(),
+                                                    negative_prompt=negative_prompt)
             self.preview_image = None
             self.set_selection_image(image, rect)
             self.update()
         except Exception:
             print(traceback.format_exc())
 
-    def handle_inpaint_button(self):
+
+    async def handle_inpaint_button(self):
         try:
             prompt = self.get_prompt()
             negative_prompt = self.get_negative_prompt()
@@ -899,16 +932,30 @@ class PaintWidget(QWidget):
                 mask = 255 - self.saved_mask_state.mask
                 image, _ = inpaint_functions[self.inpaint_method](image, 255 - mask_)
 
+            rect = self.selection_rectangle
+            if type(self.get_handler()) == ServerStableDiffusionHandler:
+                self.set_pending_rect()
+                inpainted_image = await self.get_handler().inpaint(prompt,
+                                                            image,
+                                                            mask,
+                                                            strength=self.strength,
+                                                            steps=self.steps,
+                                                            guidance_scale=self.guidance_scale,
+                                                            seed=self.seed,
+                                                            callback=self.get_callback(),
+                                                            negative_prompt=negative_prompt)
+                self.reset_pending_rect()
+            else:
+                inpainted_image = self.get_handler().inpaint(prompt,
+                                                            image,
+                                                            mask,
+                                                            strength=self.strength,
+                                                            steps=self.steps,
+                                                            guidance_scale=self.guidance_scale,
+                                                            seed=self.seed,
+                                                            callback=self.get_callback(),
+                                                            negative_prompt=negative_prompt)
 
-            inpainted_image = self.get_handler().inpaint(prompt,
-                                                         image,
-                                                         mask,
-                                                         strength=self.strength,
-                                                         steps=self.steps,
-                                                         guidance_scale=self.guidance_scale,
-                                                         seed=self.seed,
-                                                         callback=self.get_callback(),
-                                                         negative_prompt=negative_prompt)
             self.preview_image = None
                     
 
@@ -926,7 +973,7 @@ class PaintWidget(QWidget):
                 patch_alpha = np.stack([patch_alpha] * 3, axis=2)
                 inpainted_image = (inpainted_image * patch_alpha + image * (1-patch_alpha)).astype(np.uint8)
 
-            self.set_selection_image(inpainted_image)
+            self.set_selection_image(inpainted_image, rect)
             self.update()
         except:
             print(traceback.format_exc())
@@ -1017,24 +1064,38 @@ class PaintWidget(QWidget):
             return None
         return res
 
-    def handle_reimagine_button(self):
+    async def handle_reimagine_button(self):
 
         try:
             prompt = self.get_prompt()
             negative_prompt = self.get_negative_prompt()
             image_ = self.get_selection_np_image()
             image = image_[:, :, :3]
-            reimagined_image = self.get_handler().reimagine(prompt,
-                                                        image,
-                                                        steps=self.steps,
-                                                        strength=self.strength,
-                                                        guidance_scale=self.guidance_scale,
-                                                        seed=self.seed,
-                                                        callback=self.get_callback(),
-                                                        negative_prompt=negative_prompt)
+            rect = self.selection_rectangle
+            if type(self.get_handler()) == ServerStableDiffusionHandler:
+                self.set_pending_rect()
+                reimagined_image = await self.get_handler().reimagine(prompt,
+                                                            image,
+                                                            steps=self.steps,
+                                                            strength=self.strength,
+                                                            guidance_scale=self.guidance_scale,
+                                                            seed=self.seed,
+                                                            callback=self.get_callback(),
+                                                            negative_prompt=negative_prompt)
+                self.reset_pending_rect()
+            else:
+                reimagined_image = self.get_handler().reimagine(prompt,
+                                                            image,
+                                                            steps=self.steps,
+                                                            strength=self.strength,
+                                                            guidance_scale=self.guidance_scale,
+                                                            seed=self.seed,
+                                                            callback=self.get_callback(),
+                                                            negative_prompt=negative_prompt)
+
             self.preview_image = None
 
-            self.set_selection_image(reimagined_image)
+            self.set_selection_image(reimagined_image, rect)
             self.update()
         except:
             print(traceback.format_exc())
@@ -1462,8 +1523,9 @@ if __name__ == '__main__':
     erase_button.clicked.connect(lambda : widget.handle_erase_button())
     undo_button.clicked.connect(lambda : widget.handle_undo_button())
     redo_button.clicked.connect(lambda : widget.handle_redo_button())
-    generate_button.clicked.connect(lambda : asyncio.get_event_loop().create_task(widget.handle_generate_button()))
-    inpaint_button.clicked.connect(lambda : widget.handle_inpaint_button())
+    generate_button.clicked.connect(lambda : asyncio.create_task(widget.handle_generate_button()))
+    inpaint_button.clicked.connect(lambda : asyncio.create_task(widget.handle_inpaint_button()))
+    reimagine_button.clicked.connect(lambda : asyncio.create_task(widget.handle_reimagine_button()))
     quicksave_button.clicked.connect(lambda : widget.handle_quicksave_button())
     quickload_button.clicked.connect(lambda : widget.handle_quickload_button())
     export_button.clicked.connect(lambda : widget.handle_export_button())
@@ -1474,7 +1536,6 @@ if __name__ == '__main__':
     decrease_size_button.clicked.connect(lambda : widget.handle_decrease_size_button())
     show_scratchpad_button.clicked.connect(lambda : widget.handle_show_scratchpad())
     paste_scratchpad_button.clicked.connect(lambda : widget.handle_paste_scratchpad())
-    reimagine_button.clicked.connect(lambda : widget.handle_reimagine_button())
     coffee_button.clicked.connect(lambda : handle_coffee_button())
     twitter_button.clicked.connect(lambda : handle_twitter_button())
     github_button.clicked.connect(lambda : handle_github_button())
@@ -1524,8 +1585,13 @@ if __name__ == '__main__':
     scroll_area.resize(tools_widget.sizeHint())
     scroll_area.show()
 
-    async def main():
-        app.exec()
+    # async def main():
+    #     app.exec()
+    loop = qasync.QEventLoop(app)
+    asyncio.set_event_loop(loop)
+    with loop:
+        loop.run_forever()
 
-    asyncio.run(main())
+
+    # asyncio.run(main())
     # app.exec()

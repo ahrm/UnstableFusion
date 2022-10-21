@@ -30,6 +30,12 @@ class StableDiffusionHandler:
             torch_dtype=torch.float16,
             use_auth_token=token).to("cuda")
 
+        # self.text2img = StableDiffusionPipeline.from_pretrained(
+        # "runwayml/stable-diffusion-v1-5",
+        #     revision="fp16",
+        #     torch_dtype=torch.float16,
+        #     use_auth_token=token).to("cuda")
+
         # self.text2img.safety_checker = dummy_safety_checker
 
         self.inpainter = StableDiffusionInpaintPipelineLegacy(

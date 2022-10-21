@@ -26,8 +26,7 @@ from dataclasses import dataclass
 SIZE_INCREASE_INCREMENT = 20
 brush_options = ['square', 'circle']
 
-inpaint_options = ['cv2_ns',
-         'cv2_telea',
+inpaint_options = ['cv2_ns', 'cv2_telea',
          'gaussian']
         
 def cv2_telea(img, mask):
@@ -943,6 +942,10 @@ class PaintWidget(QWidget):
                 select_color_button.setStyleSheet(sheet)
 
 
+    def reset(self):
+        self.set_np_image(get_texture())
+        self.resize_to_image()
+        self.update()
 
     def handle_autofill(self):
         image_ = self.get_selection_np_image()
@@ -1111,6 +1114,7 @@ def handle_colab_button():
 
 def handle_advanced_inpainting_doc_button():
     QDesktopServices.openUrl(QUrl('https://github.com/ahrm/UnstableFusion#how-to-use-advanced-inpainting'))
+
 class PromptLineEdit(QLineEdit):
 
     def __init__(self, mods, *args, **kwargs):
@@ -1218,6 +1222,7 @@ if __name__ == '__main__':
     undo_button = QPushButton('Undo')
     redo_button = QPushButton('Redo')
     undo_redo_container = hbox(undo_button, redo_button)
+    reset_button = QPushButton('Reset')
 
     box_size_limit_checkbox = QCheckBox()
     box_size_limit_checkbox.setChecked(True)
@@ -1407,6 +1412,7 @@ if __name__ == '__main__':
     image_groupbox_layout.addWidget(increase_size_container)
     image_groupbox_layout.addWidget(paint_widgets_container)
     image_groupbox_layout.addWidget(undo_redo_container)
+    image_groupbox_layout.addWidget(reset_button)
     image_groupbox_layout.addWidget(box_size_limit_container)
     image_groupbox_layout.addWidget(fill_button)
     params_groupbox_layout.addWidget(prompt_textarea)
@@ -1470,6 +1476,7 @@ if __name__ == '__main__':
     seed_random_button.clicked.connect(random_seed_buton_handler)
     open_colab_widget.clicked.connect(handle_colab_button)
     advanced_inpainting_doc_button.clicked.connect(handle_advanced_inpainting_doc_button)
+    reset_button.clicked.connect(lambda : widget.reset())
 
     widget.color_pushbutton = select_color_button
     widget.paint_checkbox = swap_buttons_checkbox

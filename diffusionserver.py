@@ -25,7 +25,7 @@ dummy_safety_checker = lambda images, **kwargs: (images, [False] * len(images))
 class StableDiffusionHandler:
     def __init__(self, token=True):
         self.text2img = StableDiffusionPipeline.from_pretrained(
-        "CompVis/stable-diffusion-v1-4",
+        "runwayml/stable-diffusion-v1-5",
             revision="fp16",
             torch_dtype=torch.float16,
             use_auth_token=token).to("cuda")
@@ -61,17 +61,22 @@ class StableDiffusionHandler:
         self.inpainter.safety_checker = dummy_safety_checker
         self.img2img.safety_checker = dummy_safety_checker
         self.text2img.safety_checker = dummy_safety_checker
-    
+
+        from gfpgan import GFPGANer
+
+        self.gfpgan = GFPGANer(model_path="https://github.com/TencentARC/GFPGAN/releases/download/v1.3.4/GFPGANv1.4.pth", upscale=1, arch='clean',
+                                          channel_multiplier=2, bg_upsampler=None)
+
     def get_generator(self, seed):
         if seed == -1:
             return None
         else:
             return torch.Generator("cuda").manual_seed(seed)
-    
+
     def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1, callback=None, negative_prompt=None):
         print(f'Inpainting with strength {strength}, steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
-        image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
-        mask_ = Image.fromarray(mask.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
+        image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.Resampling.LANCZOS)
+        mask_ = Image.fromarray(mask.astype(np.uint8)).resize((512, 512), resample=Image.Resampling.LANCZOS)
 
         with autocast("cuda"):
             im = self.inpainter(
@@ -85,8 +90,14 @@ class StableDiffusionHandler:
                 callback=callback,
                 negative_prompt=negative_prompt
             )[0][0]
-            return im.resize((image.shape[1], image.shape[0]), resample=Image.LANCZOS)
-    
+
+            cropped_faces, restored_faces, restored_img  = self.gfpgan.enhance(np.array(im)[:,:,::-1],
+                                                                               has_aligned=False, only_center_face=False, paste_back=True, weight=0.5)
+            gfpgan_sample = restored_img[:,:,::-1]
+            im = Image.fromarray(gfpgan_sample)
+
+            return im.resize((image.shape[1], image.shape[0]), resample=Image.Resampling.LANCZOS)
+
     def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1, callback=None, negative_prompt=None):
         print(f'Generating with strength {strength}, steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
 
@@ -103,12 +114,17 @@ class StableDiffusionHandler:
                 generator=self.get_generator(seed)
             )[0][0]
 
-            return im.resize((width, height), resample=Image.LANCZOS)
-    
+            cropped_faces, restored_faces, restored_img  = self.gfpgan.enhance(np.array(im)[:,:,::-1],
+                                                                               has_aligned=False, only_center_face=False, paste_back=True, weight=0.5)
+            gfpgan_sample = restored_img[:,:,::-1]
+            im = Image.fromarray(gfpgan_sample)
+
+            return im.resize((width, height), resample=Image.Resampling.LANCZOS)
+
     def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=0.75, callback=None, negative_prompt=None):
 
         print(f'Reimagining with strength {strength} steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
-        image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
+        image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.Resampling.LANCZOS)
         with autocast("cuda"):
             results = self.img2img(
                 [prompt],
@@ -120,7 +136,15 @@ class StableDiffusionHandler:
                 negative_prompt=negative_prompt,
                 callback=callback
             )[0]
-            print(len(results))
+
+            im = results[0]
+
+            cropped_faces, restored_faces, restored_img  = self.gfpgan.enhance(np.array(im)[:,:,::-1],
+                                                                               has_aligned=False, only_center_face=False, paste_back=True, weight=0.5)
+            gfpgan_sample = restored_img[:,:,::-1]
+            im = Image.fromarray(gfpgan_sample)
+
+            #print(len(results))
             im = results[0]
             return im.resize((image.shape[1], image.shape[0]), resample=Image.LANCZOS)
 
@@ -133,7 +157,7 @@ def run_app():
     @app.route('/')
     def home():
         return "Game Over!"
-    
+
     @app.route('/reimagine', methods=['POST'])
     def reimagine():
         # get request data
@@ -223,7 +247,7 @@ def run_app():
              })
 
 
-    app.run()
+    app.run(debug=True)
 
 if __name__ == '__main__':
     run_app()

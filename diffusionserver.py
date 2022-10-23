@@ -20,6 +20,12 @@ except:
 if IN_COLAB:
     from flask_cloudflared import run_with_cloudflared
 
+try:
+    from gfpgan import GFPGANer
+    GFPGAN_AVAILABLE = True
+except:
+    GFPGAN_AVAILABLE = False
+
 dummy_safety_checker = lambda images, **kwargs: (images, [False] * len(images))
 
 class StableDiffusionHandler:
@@ -62,10 +68,12 @@ class StableDiffusionHandler:
         self.img2img.safety_checker = dummy_safety_checker
         self.text2img.safety_checker = dummy_safety_checker
 
-        from gfpgan import GFPGANer
 
-        self.gfpgan = GFPGANer(model_path="https://github.com/TencentARC/GFPGAN/releases/download/v1.3.4/GFPGANv1.4.pth", upscale=1, arch='clean',
-                                          channel_multiplier=2, bg_upsampler=None)
+        if GFPGAN_AVAILABLE:
+            self.gfpgan = GFPGANer(model_path="https://github.com/TencentARC/GFPGAN/releases/download/v1.3.4/GFPGANv1.4.pth", upscale=1, arch='clean',
+                                            channel_multiplier=2, bg_upsampler=None)
+        else:
+            self.gfpgan = None
 
     def get_generator(self, seed):
         if seed == -1:
@@ -73,7 +81,7 @@ class StableDiffusionHandler:
         else:
             return torch.Generator("cuda").manual_seed(seed)
 
-    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1, callback=None, negative_prompt=None):
+    def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1, callback=None, negative_prompt=None, use_gfp=False):
         print(f'Inpainting with strength {strength}, steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
         image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.Resampling.LANCZOS)
         mask_ = Image.fromarray(mask.astype(np.uint8)).resize((512, 512), resample=Image.Resampling.LANCZOS)
@@ -91,14 +99,15 @@ class StableDiffusionHandler:
                 negative_prompt=negative_prompt
             )[0][0]
 
-            cropped_faces, restored_faces, restored_img  = self.gfpgan.enhance(np.array(im)[:,:,::-1],
-                                                                               has_aligned=False, only_center_face=False, paste_back=True, weight=0.5)
-            gfpgan_sample = restored_img[:,:,::-1]
-            im = Image.fromarray(gfpgan_sample)
+            if (not (self.gfpgan is None)) and use_gfp:
+                cropped_faces, restored_faces, restored_img  = self.gfpgan.enhance(np.array(im)[:,:,::-1],
+                                                                                has_aligned=False, only_center_face=False, paste_back=True, weight=0.5)
+                gfpgan_sample = restored_img[:,:,::-1]
+                im = Image.fromarray(gfpgan_sample)
 
             return im.resize((image.shape[1], image.shape[0]), resample=Image.Resampling.LANCZOS)
 
-    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1, callback=None, negative_prompt=None):
+    def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1, callback=None, negative_prompt=None, use_gfp=False):
         print(f'Generating with strength {strength}, steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
 
         with autocast("cuda"):
@@ -114,14 +123,15 @@ class StableDiffusionHandler:
                 generator=self.get_generator(seed)
             )[0][0]
 
-            cropped_faces, restored_faces, restored_img  = self.gfpgan.enhance(np.array(im)[:,:,::-1],
-                                                                               has_aligned=False, only_center_face=False, paste_back=True, weight=0.5)
-            gfpgan_sample = restored_img[:,:,::-1]
-            im = Image.fromarray(gfpgan_sample)
+            if (not (self.gfpgan is None)) and use_gfp:
+                cropped_faces, restored_faces, restored_img  = self.gfpgan.enhance(np.array(im)[:,:,::-1],
+                                                                                has_aligned=False, only_center_face=False, paste_back=True, weight=0.5)
+                gfpgan_sample = restored_img[:,:,::-1]
+                im = Image.fromarray(gfpgan_sample)
 
             return im.resize((width, height), resample=Image.Resampling.LANCZOS)
 
-    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=0.75, callback=None, negative_prompt=None):
+    def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=0.75, callback=None, negative_prompt=None, use_gfp=False):
 
         print(f'Reimagining with strength {strength} steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
         image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.Resampling.LANCZOS)
@@ -139,10 +149,11 @@ class StableDiffusionHandler:
 
             im = results[0]
 
-            cropped_faces, restored_faces, restored_img  = self.gfpgan.enhance(np.array(im)[:,:,::-1],
-                                                                               has_aligned=False, only_center_face=False, paste_back=True, weight=0.5)
-            gfpgan_sample = restored_img[:,:,::-1]
-            im = Image.fromarray(gfpgan_sample)
+            if (not (self.gfpgan is None)) and use_gfp:
+                cropped_faces, restored_faces, restored_img  = self.gfpgan.enhance(np.array(im)[:,:,::-1],
+                                                                                has_aligned=False, only_center_face=False, paste_back=True, weight=0.5)
+                gfpgan_sample = restored_img[:,:,::-1]
+                im = Image.fromarray(gfpgan_sample)
 
             return im.resize((image.shape[1], image.shape[0]), resample=Image.LANCZOS)
 
@@ -166,6 +177,7 @@ def run_app():
         guidance_scale = data["guidance_scale"]
         seed = data["seed"]
         strength = data["strength"]
+        use_gfp = data["use_gfp"]
         image = np.array(data['image'])
 
         generated = stable_diffusion_handler.reimagine(
@@ -175,7 +187,8 @@ def run_app():
             guidance_scale=guidance_scale,
             seed=seed,
             strength=strength,
-            negative_prompt=negative_prompt)
+            negative_prompt=negative_prompt,
+            use_gfp=use_gfp)
 
         return jsonify({
             "status": "success",
@@ -194,6 +207,7 @@ def run_app():
         steps = data["steps"]
         guidance_scale = data["guidance_scale"]
         seed = data["seed"]
+        use_gfp = data["use_gfp"]
         image = np.array(data['image'])
         mask = np.array(data['mask'])
 
@@ -205,7 +219,8 @@ def run_app():
             steps=steps,
             guidance_scale=guidance_scale,
             seed=seed,
-            negative_prompt=negative_prompt)
+            negative_prompt=negative_prompt,
+            use_gfp=use_gfp)
 
         return jsonify({
             "status": "success",
@@ -222,6 +237,7 @@ def run_app():
         negative_prompt = data.get("negative_prompt", None)
         strength = data["strength"]
         steps = data["steps"]
+        use_gfp = data["use_gfp"]
         guidance_scale = data["guidance_scale"]
         seed = data["seed"]
         width = data["width"]
@@ -235,7 +251,8 @@ def run_app():
             seed=seed,
             width=width,
             height=height,
-            negative_prompt=negative_prompt)
+            negative_prompt=negative_prompt,
+            use_gfp=use_gfp)
 
         return jsonify({
             "status": "success",
@@ -245,7 +262,7 @@ def run_app():
              })
 
 
-    app.run(debug=True)
+    app.run()
 
 if __name__ == '__main__':
     run_app()

@@ -1,3 +1,4 @@
+from re import M
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -230,7 +231,7 @@ class ServerStableDiffusionHandler:
         if self.addr[-1] != '/':
             self.addr += '/'
     
-    async def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1, callback=None, negative_prompt=None):
+    async def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1, callback=None, negative_prompt=None, use_gfp=False):
         request_data = {
             'prompt': prompt,
             'strength': strength,
@@ -239,7 +240,8 @@ class ServerStableDiffusionHandler:
             'seed': seed,
             'image': image.tolist(),
             'mask': mask.tolist(),
-            'negative_prompt': negative_prompt
+            'negative_prompt': negative_prompt,
+            'use_gfp': use_gfp
         }
         url = self.addr + 'inpaint'
 
@@ -252,7 +254,7 @@ class ServerStableDiffusionHandler:
 
         return Image.frombytes(mode, size, image_data)
     
-    async def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1, callback=None, negative_prompt=None):
+    async def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1, callback=None, negative_prompt=None, use_gfp=False):
             request_data = {
                 'prompt': prompt,
                 'strength': strength,
@@ -261,7 +263,8 @@ class ServerStableDiffusionHandler:
                 'seed': seed,
                 'width': width,
                 'height': height,
-                'negative_prompt': negative_prompt
+                'negative_prompt': negative_prompt,
+                'use_gfp': use_gfp
             }
             url = self.addr + 'generate'
 
@@ -275,7 +278,7 @@ class ServerStableDiffusionHandler:
 
             return Image.frombytes(mode, size, image_data)
     
-    async def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=7.5, callback=None, negative_prompt=None):
+    async def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=7.5, callback=None, negative_prompt=None, use_gfp=False):
         request_data = {
             'prompt': prompt,
             'steps': steps,
@@ -283,7 +286,8 @@ class ServerStableDiffusionHandler:
             'seed': seed,
             'strength': strength,
             'image': image.tolist(),
-            'negative_prompt': negative_prompt
+            'negative_prompt': negative_prompt,
+            'use_gfp': use_gfp
         }
         url = self.addr + 'reimagine'
 
@@ -365,6 +369,7 @@ class PaintWidget(QWidget):
         self.color_pushbutton = None
         self.paint_checkbox = None
         self.smooth_inpaint_checkbox = None
+        self.gfpgan_checkbox = None
         self.pending_rect = None
 
         self.setAcceptDrops(True)
@@ -376,6 +381,11 @@ class PaintWidget(QWidget):
         mean_color_np = image.mean(axis=(0, 1))
         mean_color = QColor(mean_color_np[0], mean_color_np[1], mean_color_np[2])
         self.set_color(mean_color)
+    
+    def should_use_gfpgan(self):
+        if self.gfpgan_checkbox == None:
+            return False
+        return self.gfpgan_checkbox.isChecked()
 
     def should_inpaint_smoothly(self):
         if self.smooth_inpaint_checkbox:
@@ -895,7 +905,8 @@ class PaintWidget(QWidget):
                                                     steps=self.steps,
                                                     guidance_scale=self.guidance_scale,
                                                     callback=self.get_callback(),
-                                                    negative_prompt=negative_prompt)
+                                                    negative_prompt=negative_prompt,
+                                                    use_gfp=self.should_use_gfpgan())
                 self.reset_pending_rect()
             else:
 
@@ -907,7 +918,8 @@ class PaintWidget(QWidget):
                                                     steps=self.steps,
                                                     guidance_scale=self.guidance_scale,
                                                     callback=self.get_callback(),
-                                                    negative_prompt=negative_prompt)
+                                                    negative_prompt=negative_prompt,
+                                                    use_gfp=self.should_use_gfpgan())
             self.preview_image = None
             self.set_selection_image(image, rect)
             self.update()
@@ -936,14 +948,15 @@ class PaintWidget(QWidget):
             if type(self.get_handler()) == ServerStableDiffusionHandler:
                 self.set_pending_rect()
                 inpainted_image = await self.get_handler().inpaint(prompt,
-                                                            image,
-                                                            mask,
-                                                            strength=self.strength,
-                                                            steps=self.steps,
-                                                            guidance_scale=self.guidance_scale,
-                                                            seed=self.seed,
-                                                            callback=self.get_callback(),
-                                                            negative_prompt=negative_prompt)
+                                                                   image,
+                                                                   mask,
+                                                                   strength=self.strength,
+                                                                   steps=self.steps,
+                                                                   guidance_scale=self.guidance_scale,
+                                                                   seed=self.seed,
+                                                                   callback=self.get_callback(),
+                                                                   negative_prompt=negative_prompt,
+                                                                   use_gfp=self.should_use_gfpgan())
                 self.reset_pending_rect()
             else:
                 inpainted_image = self.get_handler().inpaint(prompt,
@@ -954,7 +967,8 @@ class PaintWidget(QWidget):
                                                             guidance_scale=self.guidance_scale,
                                                             seed=self.seed,
                                                             callback=self.get_callback(),
-                                                            negative_prompt=negative_prompt)
+                                                            negative_prompt=negative_prompt,
+                                                            use_gfp=self.should_use_gfpgan())
 
             self.preview_image = None
                     
@@ -1081,7 +1095,8 @@ class PaintWidget(QWidget):
                                                             guidance_scale=self.guidance_scale,
                                                             seed=self.seed,
                                                             callback=self.get_callback(),
-                                                            negative_prompt=negative_prompt)
+                                                            negative_prompt=negative_prompt,
+                                                            use_gfp=self.should_use_gfpgan())
                 self.reset_pending_rect()
             else:
                 reimagined_image = self.get_handler().reimagine(prompt,
@@ -1091,7 +1106,8 @@ class PaintWidget(QWidget):
                                                             guidance_scale=self.guidance_scale,
                                                             seed=self.seed,
                                                             callback=self.get_callback(),
-                                                            negative_prompt=negative_prompt)
+                                                            negative_prompt=negative_prompt,
+                                                            use_gfp=self.should_use_gfpgan())
 
             self.preview_image = None
 
@@ -1413,6 +1429,8 @@ if __name__ == '__main__':
     smooth_inpaint_checkbox = QCheckBox('Smooth Inpaint')
     inpaint_container = hbox(inpaint_selector_container, smooth_inpaint_checkbox, inpaint_button)
 
+    gfpgan_checkbox = QCheckBox('Use GFPGAN if available')
+
     coffee_button = QPushButton('Buy me a coffee')
     github_button = QPushButton()
     twitter_button = QPushButton()
@@ -1501,6 +1519,7 @@ if __name__ == '__main__':
     run_groupbox_layout.addWidget(inpaint_container)
     run_groupbox_layout.addWidget(mask_control_container)
     run_groupbox_layout.addWidget(reimagine_button)
+    run_groupbox_layout.addWidget(gfpgan_checkbox)
     save_groupbox_layout.addWidget(save_container)
     save_groupbox_layout.addWidget(export_button)
     image_groupbox.setLayout(image_groupbox_layout)
@@ -1554,6 +1573,7 @@ if __name__ == '__main__':
     widget.color_pushbutton = select_color_button
     widget.paint_checkbox = swap_buttons_checkbox
     widget.smooth_inpaint_checkbox = smooth_inpaint_checkbox
+    widget.gfpgan_checkbox = gfpgan_checkbox
 
     def seed_change_function(val):
         try:

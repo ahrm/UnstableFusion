@@ -144,8 +144,6 @@ class StableDiffusionHandler:
             gfpgan_sample = restored_img[:,:,::-1]
             im = Image.fromarray(gfpgan_sample)
 
-            #print(len(results))
-            im = results[0]
             return im.resize((image.shape[1], image.shape[0]), resample=Image.LANCZOS)
 
 def run_app():

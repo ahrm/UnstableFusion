@@ -83,8 +83,8 @@ class StableDiffusionHandler:
 
     def inpaint(self, prompt, image, mask, strength=0.75, steps=50, guidance_scale=7.5, seed=-1, callback=None, negative_prompt=None, use_gfp=False):
         print(f'Inpainting with strength {strength}, steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
-        image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.Resampling.LANCZOS)
-        mask_ = Image.fromarray(mask.astype(np.uint8)).resize((512, 512), resample=Image.Resampling.LANCZOS)
+        image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
+        mask_ = Image.fromarray(mask.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
 
         with autocast("cuda"):
             im = self.inpainter(
@@ -105,7 +105,7 @@ class StableDiffusionHandler:
                 gfpgan_sample = restored_img[:,:,::-1]
                 im = Image.fromarray(gfpgan_sample)
 
-            return im.resize((image.shape[1], image.shape[0]), resample=Image.Resampling.LANCZOS)
+            return im.resize((image.shape[1], image.shape[0]), resample=Image.LANCZOS)
 
     def generate(self, prompt, width=512, height=512, strength=0.75, steps=50, guidance_scale=7.5,seed=-1, callback=None, negative_prompt=None, use_gfp=False):
         print(f'Generating with strength {strength}, steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
@@ -129,12 +129,12 @@ class StableDiffusionHandler:
                 gfpgan_sample = restored_img[:,:,::-1]
                 im = Image.fromarray(gfpgan_sample)
 
-            return im.resize((width, height), resample=Image.Resampling.LANCZOS)
+            return im.resize((width, height), resample=Image.LANCZOS)
 
     def reimagine(self, prompt, image, steps=50, guidance_scale=7.5, seed=-1, strength=0.75, callback=None, negative_prompt=None, use_gfp=False):
 
         print(f'Reimagining with strength {strength} steps {steps}, guidance_scale {guidance_scale}, seed {seed}')
-        image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.Resampling.LANCZOS)
+        image_ = Image.fromarray(image.astype(np.uint8)).resize((512, 512), resample=Image.LANCZOS)
         with autocast("cuda"):
             results = self.img2img(
                 [prompt],

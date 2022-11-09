@@ -1073,9 +1073,10 @@ class PaintWidget(QWidget):
 
     def get_negative_prompt(self):
         res = self.negative_prompt_textarea.text()
-        if len(res) == 0:
-            return None
-        return [res]
+        return res
+        # if len(res) == 0:
+        #     return None
+        # return [res]
 
     async def handle_reimagine_button(self):
 

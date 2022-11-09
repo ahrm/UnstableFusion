@@ -1,4 +1,3 @@
-from lib2to3.pytree import NegatedPattern
 from urllib import request
 import numpy as np
 from PIL import Image
@@ -20,11 +19,15 @@ except:
 if IN_COLAB:
     from flask_cloudflared import run_with_cloudflared
 
-try:
-    from gfpgan import GFPGANer
-    GFPGAN_AVAILABLE = True
-except:
-    GFPGAN_AVAILABLE = False
+USE_GFPGAN = False
+GFPGAN_AVAILABLE = False
+
+if USE_GFPGAN:
+    try:
+        from gfpgan import GFPGANer
+        GFPGAN_AVAILABLE = True
+    except:
+        pass
 
 dummy_safety_checker = lambda images, **kwargs: (images, [False] * len(images))
 
@@ -143,7 +146,7 @@ class StableDiffusionHandler:
                 guidance_scale=guidance_scale,
                 strength=strength,
                 generator=self.get_generator(seed),
-                negative_prompt=negative_prompt,
+                negative_prompt=[negative_prompt],
                 callback=callback
             )[0]
 

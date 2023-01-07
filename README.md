@@ -7,6 +7,12 @@ https://user-images.githubusercontent.com/6392321/191858568-0550f52d-e89c-4b37-a
 1. Install the dependencies (for example using `pip`). The dependencies include :
 * `PyQt5`, `numpy`, `pytorch`, `Pillow`, `opencv-python`, `requests`, `flask`, `diffusers`, `transformers`, `protobuf`, `qasync`, `httpx`
 
+Package versions given in "requirements.txt" may, depending on environment, need to be supplemented by:
+- jinja2==2.10.1
+- markupsafe==0.23.0
+- itsdangerous==0.24.0
+- werkzeug==0.15.0
+
 Note that if you want to run StableDiffusion on Windows locally, use requirements-localgpu-win64.txt
 ```
 pip install -r requirements-localgpu-win64.txt
